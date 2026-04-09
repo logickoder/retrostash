@@ -61,7 +61,7 @@ dependencyResolutionManagement {
 ```kotlin
 // module build.gradle.kts
 dependencies {
-    implementation("com.github.logickoder:retrostash:0.0.3")
+    implementation("com.github.logickoder:retrostash:0.0.4")
 }
 ```
 
