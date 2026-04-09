@@ -1,5 +1,6 @@
 package dev.logickoder.retrostash.model
 
+/** In-memory representation of a cached payload and optional content type. */
 data class CachedEntry(val body: ByteArray, val contentType: String?) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

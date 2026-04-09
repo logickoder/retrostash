@@ -10,7 +10,13 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import dev.logickoder.retrostash.PostResponseCacheStore
 
 /**
- * Applies annotation-driven invalidation and persisted POST query response caching.
+ * Applies mutation invalidation and persisted POST query caching.
+ *
+ * Behavior:
+ * - Dirty query key: force network refresh with `Cache-Control: no-cache`.
+ * - Clean POST query key with stored entry: short-circuit and return cached response.
+ * - Successful mutation: mark configured keys dirty.
+ * - Successful POST query response: persist body for future replay.
  */
 class NetworkCachePolicyInterceptor(
     private val keyResolver: NetworkCacheKeyResolver,
@@ -18,15 +24,18 @@ class NetworkCachePolicyInterceptor(
     private val postCacheStore: PostResponseCacheStore
 ) : Interceptor {
 
+    /** Intercepts requests and enforces RetroStash query/mutation policy. */
     override fun intercept(chain: Interceptor.Chain): Response {
         var request = chain.request()
         val ctx = keyResolver.resolveQueryContext(request)
+        var consumedAfterSuccessKey: String? = null
 
         if (ctx != null) {
-            if (invalidator.consumeIfDirty(ctx.key)) {
+            if (invalidator.isDirty(ctx.key)) {
                 request = request.newBuilder()
                     .header(CacheInterceptor.HEADER_CACHE_CONTROL, "no-cache")
                     .build()
+                consumedAfterSuccessKey = ctx.key
             } else if (ctx.isPost) {
                 postCacheStore.get(ctx.key)?.let { cached ->
                     return Response.Builder()
@@ -43,6 +52,8 @@ class NetworkCachePolicyInterceptor(
         val response = chain.proceed(request)
 
         if (!response.isSuccessful) return response
+
+        consumedAfterSuccessKey?.let { invalidator.clearDirty(it) }
 
         val mutationKeys = keyResolver.resolveMutationKeys(request)
         if (mutationKeys.isNotEmpty()) invalidator.markDirty(mutationKeys)

@@ -5,7 +5,8 @@ retrofit = "3.0.0"
 okhttp = "5.3.2"
 gson = "2.10.1"
 junit = "4.13.2"
-runner = "1.0.2"
+runner = "1.6.2"
+espresso = "3.6.1"
 
 [libraries]
 # AndroidX dependencies
@@ -19,8 +20,8 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 # Testing dependencies
 junit = { group = "junit", name = "junit", version.ref = "junit" }
-runner = { group = "com.android.support.test", name = "runner", version.ref = "runner" }
-espresso-core = { group = "com.android.support.test.espresso", name = "espresso-core", version = "3.0.2" }
+runner = { group = "androidx.test", name = "runner", version.ref = "runner" }
+espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

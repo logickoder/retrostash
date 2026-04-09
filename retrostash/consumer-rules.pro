@@ -1,14 +1,12 @@
-# retrostash/consumer-rules.pro
+# Preserve annotation metadata required by Retrofit Invocation + Retrostash reflection.
+-keepattributes RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations,AnnotationDefault
 
-# 1. Preserve annotations in the bytecode so Invocation reflection can read them
--keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
-
-# 2. Prevent R8 from stripping or obfuscating the annotation classes
+# Ensure Retrostash annotations remain available at runtime.
 -keep @interface dev.logickoder.retrostash.CacheQuery
 -keep @interface dev.logickoder.retrostash.CacheMutate
 
-# 3. Preserve the interface methods (and their parameters) that use these annotations
--keepclassmembers interface * {
-    @dev.logickoder.retrostash.CacheQuery *;
-    @dev.logickoder.retrostash.CacheMutate *;
+# Keep service methods carrying Retrostash annotations while still allowing shrinking/obfuscation.
+-keepclassmembers,allowshrinking,allowobfuscation interface * {
+    @dev.logickoder.retrostash.CacheQuery <methods>;
+    @dev.logickoder.retrostash.CacheMutate <methods>;
 }

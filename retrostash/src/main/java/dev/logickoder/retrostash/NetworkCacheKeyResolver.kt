@@ -1,17 +1,28 @@
 package dev.logickoder.retrostash
 
-import com.google.gson.JsonElement
 import dev.logickoder.retrostash.model.QueryContext
 import okhttp3.Request
 import retrofit2.Invocation
 import retrofit2.http.Body
 import retrofit2.http.Path
 import retrofit2.http.Query
+import org.json.JSONArray
+import org.json.JSONObject
+import java.lang.reflect.Array as ReflectArray
+import java.lang.reflect.Modifier
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.util.Collections
+import java.util.IdentityHashMap
 
+/**
+ * Resolves stable cache keys from Retrofit invocation metadata and key templates.
+ */
 class NetworkCacheKeyResolver {
 
+    /**
+     * Resolves [QueryContext] for requests annotated with [CacheQuery].
+     */
     fun resolveQueryContext(request: Request): QueryContext? {
         val invocation = request.tag(Invocation::class.java) ?: return null
         val annotation = invocation.method().getAnnotation(CacheQuery::class.java) ?: return null
@@ -19,6 +30,9 @@ class NetworkCacheKeyResolver {
         return QueryContext(key, request.method == "POST")
     }
 
+    /**
+     * Resolves all invalidation keys defined by [CacheMutate] for the request.
+     */
     fun resolveMutationKeys(request: Request): List<String> {
         val invocation = request.tag(Invocation::class.java) ?: return emptyList()
         val annotation =
@@ -52,7 +66,7 @@ class NetworkCacheKeyResolver {
                 if (anns.any { it is Body }) args.getOrNull(i) else null
             }
             unresolved.forEach { placeholder ->
-                bodyArgs.firstNotNullOfOrNull { traverseJson(gson.toJsonTree(it), placeholder) }
+                bodyArgs.firstNotNullOfOrNull { traverseAny(it, placeholder) }
                     ?.let { bindings[placeholder] = it }
             }
         }
@@ -65,21 +79,87 @@ class NetworkCacheKeyResolver {
         return "${method.declaringClass.simpleName}|$resolved|$hash"
     }
 
-    private fun traverseJson(element: JsonElement, fieldName: String): String? = when {
-        element.isJsonObject -> {
-            val obj = element.asJsonObject
-            val direct = obj.get(fieldName)
-            if (direct != null && !direct.isJsonNull && direct.isJsonPrimitive) direct.asString
-            else obj.entrySet().firstNotNullOfOrNull { (_, v) -> traverseJson(v, fieldName) }
+    private fun traverseAny(root: Any, fieldName: String): String? {
+        val visited = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
+        return traverseAnyInternal(root, fieldName, visited)
+    }
+
+    private fun traverseAnyInternal(
+        value: Any?,
+        fieldName: String,
+        visited: MutableSet<Any>
+    ): String? {
+        if (value == null) return null
+        if (primitiveAsString(value) != null) return null
+        if (!visited.add(value)) return null
+
+        if (value is Map<*, *>) {
+            value[fieldName]?.let { primitiveAsString(it) }?.let { return it }
+            return value.values.firstNotNullOfOrNull { traverseAnyInternal(it, fieldName, visited) }
         }
 
-        element.isJsonArray -> element.asJsonArray.firstNotNullOfOrNull {
-            traverseJson(
-                it,
-                fieldName
-            )
+        if (value is JSONObject) {
+            value.opt(fieldName)?.let { primitiveAsString(it) }?.let { return it }
+            val keys = value.keys()
+            while (keys.hasNext()) {
+                val nested = traverseAnyInternal(value.opt(keys.next()), fieldName, visited)
+                if (nested != null) return nested
+            }
+            return null
         }
 
+        if (value is JSONArray) {
+            for (i in 0 until value.length()) {
+                val nested = traverseAnyInternal(value.opt(i), fieldName, visited)
+                if (nested != null) return nested
+            }
+            return null
+        }
+
+        if (value is Iterable<*>) {
+            return value.firstNotNullOfOrNull { traverseAnyInternal(it, fieldName, visited) }
+        }
+
+        if (value.javaClass.isArray) {
+            val length = ReflectArray.getLength(value)
+            for (i in 0 until length) {
+                val found = traverseAnyInternal(ReflectArray.get(value, i), fieldName, visited)
+                if (found != null) return found
+            }
+            return null
+        }
+
+        var type: Class<*>? = value.javaClass
+        while (type != null && type != Any::class.java) {
+            type.declaredFields
+                .filterNot { Modifier.isStatic(it.modifiers) || it.isSynthetic }
+                .forEach { field ->
+                    val fieldValue = runCatching {
+                        field.isAccessible = true
+                        field.get(value)
+                    }.getOrNull()
+
+                    if (field.name == fieldName) {
+                        primitiveAsString(fieldValue)?.let { return it }
+                    }
+
+                    val nested = traverseAnyInternal(fieldValue, fieldName, visited)
+                    if (nested != null) return nested
+                }
+            type = type.superclass
+        }
+
+        return null
+    }
+
+    private fun primitiveAsString(value: Any?): String? = when (value) {
+        null -> null
+        JSONObject.NULL -> null
+        is String -> value
+        is Number -> value.toString()
+        is Boolean -> value.toString()
+        is Char -> value.toString()
+        is Enum<*> -> value.name
         else -> null
     }
 

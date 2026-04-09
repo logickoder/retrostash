@@ -5,6 +5,9 @@ import android.content.SharedPreferences
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * Tracks mutation-driven dirty query keys with optional persistence.
+ */
 class NetworkCacheInvalidator(
     context: Context,
     private val ttlMs: Long = DEFAULT_TTL_MS
@@ -34,17 +37,27 @@ class NetworkCacheInvalidator(
         persist()
     }
 
+    /** Checks and consumes a dirty key in one call. */
     fun consumeIfDirty(key: String): Boolean {
+        if (!isDirty(key)) return false
+        clearDirty(key)
+        return true
+    }
+
+    /** Returns true when [key] is dirty and not expired. */
+    fun isDirty(key: String): Boolean {
         if (key.isBlank()) return false
-
         val now = System.currentTimeMillis()
-
-        val ts = map.remove(key) ?: return false
-
+        val ts = map[key] ?: return false
         val dirty = now - ts <= ttlMs
-        if (dirty) persist()
-
+        if (!dirty && map.remove(key) != null) persist()
         return dirty
+    }
+
+    /** Removes dirty mark for [key] if present. */
+    fun clearDirty(key: String) {
+        if (key.isBlank()) return
+        if (map.remove(key) != null) persist()
     }
 
     fun clear() {
@@ -55,7 +68,7 @@ class NetworkCacheInvalidator(
     private fun persist() {
         val snapshot = JSONObject()
         map.forEach { (k, v) -> snapshot.put(k, v) }
-        prefs.edit { putString(PREF_KEY, snapshot.toString()) } // apply() via androidx ktx
+        prefs.edit { putString(PREF_KEY, snapshot.toString()) }
     }
 
     companion object {

@@ -11,6 +11,9 @@ import java.security.MessageDigest
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
+/**
+ * Persistent bounded cache for successful POST query responses.
+ */
 class PostResponseCacheStore(
     context: Context,
     private val maxEntries: Int = 32,
@@ -22,43 +25,52 @@ class PostResponseCacheStore(
     private val cacheDir: File = File(context.cacheDir, CACHE_DIR_NAME).apply { mkdirs() }
     private val lock = ReentrantLock()
 
-    // Access-order LRU: head = LRU, tail = MRU. All structural access under lock.
     private val index: LinkedHashMap<String, Entry> = loadIndex()
     private var totalBytes: Long = index.values.sumOf { it.size }
 
+    /** Returns cached payload for [key] when entry exists and is fresh. */
     fun get(key: String): CachedEntry? {
         val fileName: String
         val contentType: String?
         val entrySize: Long
+        val now = System.currentTimeMillis()
 
         lock.withLock {
-            val entry = index[key] ?: return null // access-order: moves to tail
-            if (System.currentTimeMillis() > entry.expiresAt) {
+            val entry = index[key] ?: return null
+            if (now > entry.expiresAt) {
                 index.remove(key)
                 totalBytes -= entry.size
-                File(cacheDir, entry.fileName).delete() // single delete; acceptable inside lock
+                File(cacheDir, entry.fileName).delete()
+                persistIndex()
                 return null
             }
-            fileName = entry.fileName
-            contentType = entry.contentType
-            entrySize = entry.size
+
+            val touched = entry.copy(lastAccess = now)
+            index[key] = touched
+            persistIndex()
+
+            fileName = touched.fileName
+            contentType = touched.contentType
+            entrySize = touched.size
         }
 
-        // Blocking read outside lock
         return runCatching {
             CachedEntry(File(cacheDir, fileName).readBytes(), contentType)
         }.getOrElse {
             lock.withLock {
-                if (index.remove(key) != null) totalBytes -= entrySize
+                if (index.remove(key) != null) {
+                    totalBytes -= entrySize
+                    persistIndex()
+                }
             }
             null
         }
     }
 
+    /** Stores [payload] and enforces TTL + LRU bounds. */
     fun put(key: String, payload: ByteArray, contentType: String?) {
         val fileName = "${sha256(key)}.cache"
 
-        // Blocking write outside lock
         runCatching { File(cacheDir, fileName).writeBytes(payload) }.onFailure { return }
 
         val now = System.currentTimeMillis()
@@ -83,7 +95,6 @@ class PostResponseCacheStore(
             persistIndex()
         }
 
-        // Bulk deletes outside lock
         filesToDelete.forEach { File(cacheDir, it).delete() }
     }
 
@@ -97,7 +108,6 @@ class PostResponseCacheStore(
         cacheDir.mkdirs()
     }
 
-    // Called inside lock only
     private fun evictExpired(filesToDelete: MutableList<String>) {
         val now = System.currentTimeMillis()
         val iter = index.iterator()
@@ -111,7 +121,6 @@ class PostResponseCacheStore(
         }
     }
 
-    // Called inside lock only. LRU entries are at the head of the access-order map.
     private fun evictLru(filesToDelete: MutableList<String>) {
         val iter = index.iterator()
         while ((index.size > maxEntries || totalBytes > maxBytes) && iter.hasNext()) {
@@ -163,7 +172,6 @@ class PostResponseCacheStore(
             )
         }
 
-        // Insert in ascending lastAccess order to restore LRU ordering in access-order map
         return LinkedHashMap<String, Entry>(maxOf(entries.size, 16), 0.75f, true).also { map ->
             entries.sortedBy { it.second.lastAccess }.forEach { (k, v) -> map[k] = v }
         }
@@ -186,6 +194,7 @@ class PostResponseCacheStore(
         private const val F_LAST_ACCESS = "la"
         private const val F_EXPIRES_AT = "ea"
 
+        /** Clears all persisted entries and index for the cache store. */
         fun clearStorage(context: Context) {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit { remove(PREF_INDEX) }

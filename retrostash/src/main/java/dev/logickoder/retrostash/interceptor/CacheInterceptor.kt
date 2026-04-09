@@ -5,6 +5,9 @@ import okhttp3.Interceptor
 import okhttp3.Response
 import retrofit2.Invocation
 
+/**
+ * Rewrites cache headers for annotated Retrofit methods.
+ */
 internal class CacheInterceptor(
     private val maxAgeSeconds: Long = 24 * 60 * 60L,
     private val enableGetCaching: Boolean = true
@@ -16,7 +19,6 @@ internal class CacheInterceptor(
         val method = request.tag(Invocation::class.java)?.method()
         return when {
             method?.isAnnotationPresent(CacheMutate::class.java) == true -> {
-                // Prevent OkHttp from caching mutation responses regardless of server headers.
                 chain.proceed(request).newBuilder()
                     .removeHeader(HEADER_PRAGMA)
                     .removeHeader(HEADER_CACHE_CONTROL)
@@ -25,7 +27,6 @@ internal class CacheInterceptor(
             }
 
             request.method == "GET" && enableGetCaching -> {
-                // POST @CacheQuery is handled by PostResponseCacheStore; OkHttp never caches POST.
                 chain.proceed(request).newBuilder()
                     .removeHeader(HEADER_PRAGMA)
                     .removeHeader(HEADER_CACHE_CONTROL)
@@ -33,7 +34,7 @@ internal class CacheInterceptor(
                     .build()
             }
 
-            else -> chain.proceed(request) // Non-annotated: let server headers flow through.
+            else -> chain.proceed(request)
         }
     }
 

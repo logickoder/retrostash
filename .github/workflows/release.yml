@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Build and test retrostash module
+        run: ./gradlew :retrostash:clean :retrostash:compileReleaseKotlin :retrostash:testDebugUnitTest --console=plain
+
+      - name: Publish release artifacts to Maven Local (verification)
+        run: ./gradlew :retrostash:publishReleasePublicationToMavenLocal --console=plain
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+
+  bump-next-snapshot:
+    runs-on: ubuntu-latest
+    needs: release
+    if: success()
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Bump POM_VERSION to next snapshot
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          base_version="${TAG_NAME#v}"
+          if ! echo "$base_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Tag '$TAG_NAME' is not semver-like (vX.Y.Z), skipping bump."
+            exit 0
+          fi
+
+          major=$(echo "$base_version" | cut -d. -f1)
+          minor=$(echo "$base_version" | cut -d. -f2)
+          patch=$(echo "$base_version" | cut -d. -f3)
+          next_patch=$((patch + 1))
+          next_snapshot="${major}.${minor}.${next_patch}-SNAPSHOT"
+
+          sed -i "s/^POM_VERSION=.*/POM_VERSION=${next_snapshot}/" gradle.properties
+          echo "Next snapshot: ${next_snapshot}"
+
+      - name: Commit and push
+        env:
+          NEXT_VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet -- gradle.properties; then
+            echo "No version changes to commit."
+            exit 0
+          fi
+
+          git add gradle.properties
+          git commit -m "chore: bump POM_VERSION after ${NEXT_VERSION} release"
+          git push origin HEAD:main
