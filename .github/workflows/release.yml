@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - "[0-9]*.[0-9]*.[0-9]*"
   workflow_dispatch:
     inputs:
       bump:
@@ -46,13 +46,12 @@ jobs:
             created_tag="false"
           else
             bump="${INPUT_BUMP}"
-            latest_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)"
+            latest_tag="$(git tag --list '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)"
             if [ -z "${latest_tag}" ]; then
-              latest_tag="v0.0.0"
+              latest_tag="0.0.0"
             fi
 
-            base_version="${latest_tag#v}"
-            IFS='.' read -r major minor patch <<< "${base_version}"
+            IFS='.' read -r major minor patch <<< "${latest_tag}"
 
             case "${bump}" in
               major)
@@ -73,7 +72,7 @@ jobs:
                 ;;
             esac
 
-            tag_name="v${major}.${minor}.${patch}"
+            tag_name="${major}.${minor}.${patch}"
             created_tag="true"
             echo "Latest existing tag: ${latest_tag}"
             echo "Computed next tag: ${tag_name}"

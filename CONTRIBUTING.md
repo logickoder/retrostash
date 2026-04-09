@@ -50,8 +50,8 @@ Retrostash uses tag-based releases.
 3. Tag and push:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag 0.1.0
+git push origin 0.1.0
 ```
 
 4. GitHub Actions runs the release workflow.
@@ -59,14 +59,14 @@ git push origin v0.1.0
 6. Consumers use:
 
 ```kotlin
-implementation("com.github.logickoder:retrostash:v0.1.0")
+implementation("com.github.logickoder:retrostash:0.1.0")
 ```
 
 ### Auto-bump after successful tag
 
 After a successful tagged release, CI updates `POM_VERSION` on `main` to the next patch snapshot:
 
-- `v0.1.0` -> `0.1.1-SNAPSHOT`
+- `0.1.0` -> `0.1.1-SNAPSHOT`
 
 This keeps development versioning moving automatically.
 
