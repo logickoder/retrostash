@@ -238,9 +238,10 @@ class PostResponseCacheStore(
         private const val F_EXPIRES_AT = "ea"
 
         /** Clears all persisted entries and index for the cache store. */
-        fun clearStorage(context: Context) {
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit { remove(PREF_INDEX) }
+        fun clear(context: Context) {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
+                remove(PREF_INDEX)
+            }
             File(context.cacheDir, CACHE_DIR_NAME).deleteRecursively()
         }
     }

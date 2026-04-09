@@ -81,6 +81,6 @@ object Retrostash {
     @JvmStatic
     fun clear(context: Context) {
         NetworkCacheInvalidator.clear(context)
-        PostResponseCacheStore.clearStorage(context)
+        PostResponseCacheStore.clear(context)
     }
 }
