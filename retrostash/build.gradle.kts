@@ -69,7 +69,7 @@ afterEvaluate {
                 version = providers.gradleProperty("POM_VERSION").orElse("0.1.0-SNAPSHOT").get()
 
                 pom {
-                    name.set(providers.gradleProperty("POM_NAME").orElse("RetroStash"))
+                    name.set(providers.gradleProperty("POM_NAME").orElse("Retrostash"))
                     description.set(
                         providers.gradleProperty("POM_DESCRIPTION")
                             .orElse("Retrofit + OkHttp query caching and mutation invalidation")

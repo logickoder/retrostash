@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import dev.logickoder.retrostash.model.CachedEntry
 import dev.logickoder.retrostash.model.Entry
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -32,6 +33,9 @@ class PostResponseCacheStore(
     fun get(key: String): CachedEntry? {
         val fileName: String
         val contentType: String?
+        val statusCode: Int
+        val statusMessage: String
+        val headers: List<Pair<String, String>>
         val entrySize: Long
         val now = System.currentTimeMillis()
 
@@ -45,17 +49,22 @@ class PostResponseCacheStore(
                 return null
             }
 
-            val touched = entry.copy(lastAccess = now)
-            index[key] = touched
-            persistIndex()
-
-            fileName = touched.fileName
-            contentType = touched.contentType
-            entrySize = touched.size
+            fileName = entry.fileName
+            contentType = entry.contentType
+            statusCode = entry.statusCode
+            statusMessage = entry.statusMessage
+            headers = entry.headers
+            entrySize = entry.size
         }
 
         return runCatching {
-            CachedEntry(File(cacheDir, fileName).readBytes(), contentType)
+            CachedEntry(
+                body = File(cacheDir, fileName).readBytes(),
+                contentType = contentType,
+                statusCode = statusCode,
+                statusMessage = statusMessage,
+                headers = headers,
+            )
         }.getOrElse {
             lock.withLock {
                 if (index.remove(key) != null) {
@@ -68,7 +77,14 @@ class PostResponseCacheStore(
     }
 
     /** Stores [payload] and enforces TTL + LRU bounds. */
-    fun put(key: String, payload: ByteArray, contentType: String?) {
+    fun put(
+        key: String,
+        payload: ByteArray,
+        contentType: String?,
+        statusCode: Int,
+        statusMessage: String,
+        headers: List<Pair<String, String>>,
+    ) {
         val fileName = "${sha256(key)}.cache"
 
         runCatching { File(cacheDir, fileName).writeBytes(payload) }.onFailure { return }
@@ -84,6 +100,9 @@ class PostResponseCacheStore(
             index[key] = Entry(
                 fileName = fileName,
                 contentType = contentType,
+                statusCode = statusCode,
+                statusMessage = statusMessage,
+                headers = headers,
                 size = payload.size.toLong(),
                 createdAt = now,
                 lastAccess = now,
@@ -137,6 +156,16 @@ class PostResponseCacheStore(
             json.put(key, JSONObject().apply {
                 put(F_FILE, entry.fileName)
                 put(F_CONTENT_TYPE, entry.contentType ?: "")
+                put(F_STATUS_CODE, entry.statusCode)
+                put(F_STATUS_MESSAGE, entry.statusMessage)
+                put(F_HEADERS, JSONArray().apply {
+                    entry.headers.forEach { (name, value) ->
+                        put(JSONArray().apply {
+                            put(name)
+                            put(value)
+                        })
+                    }
+                })
                 put(F_SIZE, entry.size)
                 put(F_CREATED_AT, entry.createdAt)
                 put(F_LAST_ACCESS, entry.lastAccess)
@@ -165,6 +194,17 @@ class PostResponseCacheStore(
             entries += key to Entry(
                 fileName = fileName,
                 contentType = obj.optString(F_CONTENT_TYPE).ifBlank { null },
+                statusCode = obj.optInt(F_STATUS_CODE, 200),
+                statusMessage = obj.optString(F_STATUS_MESSAGE).ifBlank { "OK" },
+                headers = buildList {
+                    val arr = obj.optJSONArray(F_HEADERS) ?: JSONArray()
+                    for (i in 0 until arr.length()) {
+                        val pair = arr.optJSONArray(i) ?: continue
+                        val name = pair.optString(0).orEmpty()
+                        val value = pair.optString(1).orEmpty()
+                        if (name.isNotBlank()) add(name to value)
+                    }
+                },
                 size = obj.optLong(F_SIZE, 0L),
                 createdAt = obj.optLong(F_CREATED_AT, 0L),
                 lastAccess = obj.optLong(F_LAST_ACCESS, 0L),
@@ -189,6 +229,9 @@ class PostResponseCacheStore(
 
         private const val F_FILE = "f"
         private const val F_CONTENT_TYPE = "ct"
+        private const val F_STATUS_CODE = "sc"
+        private const val F_STATUS_MESSAGE = "sm"
+        private const val F_HEADERS = "h"
         private const val F_SIZE = "s"
         private const val F_CREATED_AT = "ca"
         private const val F_LAST_ACCESS = "la"

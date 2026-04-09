@@ -2,6 +2,7 @@ package dev.logickoder.retrostash.interceptor
 
 import dev.logickoder.retrostash.NetworkCacheInvalidator
 import dev.logickoder.retrostash.NetworkCacheKeyResolver
+import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.Protocol
@@ -24,7 +25,7 @@ class NetworkCachePolicyInterceptor(
     private val postCacheStore: PostResponseCacheStore
 ) : Interceptor {
 
-    /** Intercepts requests and enforces RetroStash query/mutation policy. */
+    /** Intercepts requests and enforces Retrostash query/mutation policy. */
     override fun intercept(chain: Interceptor.Chain): Response {
         var request = chain.request()
         val ctx = keyResolver.resolveQueryContext(request)
@@ -41,8 +42,15 @@ class NetworkCachePolicyInterceptor(
                     return Response.Builder()
                         .request(request)
                         .protocol(Protocol.HTTP_1_1)
-                        .code(200)
-                        .message("OK")
+                        .code(cached.statusCode)
+                        .message(cached.statusMessage)
+                        .headers(
+                            Headers.Builder().apply {
+                                cached.headers.forEach { (name, value) ->
+                                    add(name, value)
+                                }
+                            }.build()
+                        )
                         .body(cached.body.toResponseBody(cached.contentType?.toMediaTypeOrNull()))
                         .build()
                 }
@@ -62,7 +70,21 @@ class NetworkCachePolicyInterceptor(
 
         val body = response.body ?: return response
         val bytes = body.bytes()
-        postCacheStore.put(ctx.key, bytes, body.contentType()?.toString())
+        val headers = buildList {
+            response.headers.names().forEach { name ->
+                response.headers.values(name).forEach { value ->
+                    add(name to value)
+                }
+            }
+        }
+        postCacheStore.put(
+            key = ctx.key,
+            payload = bytes,
+            contentType = body.contentType()?.toString(),
+            statusCode = response.code,
+            statusMessage = response.message,
+            headers = headers,
+        )
 
         return response.newBuilder()
             .body(bytes.toResponseBody(body.contentType()))

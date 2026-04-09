@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.logickoder.retrostash"
+    namespace = "dev.logickoder.retrostash.example"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "dev.logickoder.retrostash"
+        applicationId = "dev.logickoder.retrostash.example"
         minSdk = 23
         targetSdk = 36
         versionCode = 1
@@ -39,6 +39,11 @@ dependencies {
     implementation(libs.core)
     implementation(libs.core.appcompat)
     implementation(libs.core.material)
+    implementation(project(":retrostash"))
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.gson)
+    implementation(libs.okhttp)
+    implementation(libs.gson)
     testImplementation(libs.junit)
     androidTestImplementation(libs.espresso.core)
 }
