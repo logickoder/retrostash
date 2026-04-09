@@ -60,13 +60,9 @@ dependencyResolutionManagement {
 ```kotlin
 // module build.gradle.kts
 dependencies {
-    implementation("com.github.logickoder:retrostash:<tag>")
+    implementation("com.github.logickoder:retrostash:0.1.5")
 }
 ```
-
-Example:
-
-- `implementation("com.github.logickoder:retrostash:0.1.3")`
 
 The README example version is updated automatically on release to match the latest tag.
 
