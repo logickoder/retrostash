@@ -1,0 +1,97 @@
+name: Create Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Select semantic version bump
+        required: true
+        default: patch
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Compute next tag
+        id: compute
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+
+          latest_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)"
+          if [ -z "${latest_tag}" ]; then
+            latest_tag="v0.0.0"
+          fi
+
+          base_version="${latest_tag#v}"
+          IFS='.' read -r major minor patch <<< "${base_version}"
+
+          case "${BUMP}" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+            *)
+              echo "Unsupported bump type: ${BUMP}" >&2
+              exit 1
+              ;;
+          esac
+
+          next_tag="v${major}.${minor}.${patch}"
+          echo "latest_tag=${latest_tag}" >> "$GITHUB_OUTPUT"
+          echo "next_tag=${next_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        env:
+          NEXT_TAG: ${{ steps.compute.outputs.next_tag }}
+        run: |
+          set -euo pipefail
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${NEXT_TAG}" >/dev/null 2>&1; then
+            echo "Tag already exists on origin: ${NEXT_TAG}" >&2
+            exit 1
+          fi
+
+          git tag "${NEXT_TAG}"
+          git push origin "${NEXT_TAG}"
+
+      - name: Write summary
+        env:
+          BUMP: ${{ inputs.bump }}
+          LATEST_TAG: ${{ steps.compute.outputs.latest_tag }}
+          NEXT_TAG: ${{ steps.compute.outputs.next_tag }}
+        run: |
+          {
+            echo "## Tag Creation Summary"
+            echo ""
+            echo "- Bump type: ${BUMP}"
+            echo "- Previous tag: ${LATEST_TAG}"
+            echo "- Pushed tag: ${NEXT_TAG}"
+            echo "- Triggered release workflow: https://github.com/${{ github.repository }}/actions/workflows/release.yml"
+          } >> "$GITHUB_STEP_SUMMARY"
