@@ -218,4 +218,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - Local Maven publishing
 - Release/versioning flow
 - Auto-deployment behavior after tags
-```
