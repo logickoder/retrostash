@@ -117,6 +117,18 @@ class PostResponseCacheStore(
         filesToDelete.forEach { File(cacheDir, it).delete() }
     }
 
+    /** Removes cached payload for [key] if present. */
+    fun remove(key: String): Boolean {
+        val fileName = lock.withLock {
+            val removed = index.remove(key) ?: return false
+            totalBytes -= removed.size
+            persistIndex()
+            removed.fileName
+        }
+        File(cacheDir, fileName).delete()
+        return true
+    }
+
     fun clear() {
         lock.withLock {
             index.clear()

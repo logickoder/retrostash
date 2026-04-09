@@ -151,6 +151,35 @@ POST-based query templates if you use `@CacheQuery` on POST endpoints.
 Retrostash.clear(appContext)
 ```
 
+## External Invalidation
+
+If you need to invalidate outside interceptor flow, Retrostash can mark query keys dirty directly.
+
+By template plus bindings:
+
+```kotlin
+Retrostash.invalidateQuery(
+    context = appContext,
+    apiClass = UserApi::class.java,
+    template = "users/{id}?tenant={tenant}",
+    bindings = mapOf(
+        "id" to "42",
+        "tenant" to "acme",
+    ),
+)
+```
+
+By resolved internal key:
+
+```kotlin
+Retrostash.invalidateQueryKey(
+    context = appContext,
+    key = "UserApi|users/42?tenant=acme|...",
+)
+```
+
+This applies to both GET and POST queries annotated with `@CacheQuery`.
+
 ### Optional logging
 
 Retrostash accepts an optional `logger` callback in `RetrostashConfig`.

@@ -74,6 +74,40 @@ object Retrostash {
     }
 
     /**
+     * Marks [key] dirty and removes any persisted POST query payload for that key.
+     *
+     * @return true when [key] is non-blank and invalidation was applied.
+     */
+    @JvmStatic
+    fun invalidateQueryKey(
+        context: Context,
+        key: String,
+    ): Boolean {
+        if (key.isBlank()) return false
+        NetworkCacheInvalidator(context).markDirty(listOf(key))
+        PostResponseCacheStore(context).remove(key)
+        return true
+    }
+
+    /**
+     * Resolves and invalidates a query key externally using a [CacheQuery] template.
+     *
+     * @return resolved key when placeholders are fully bound; otherwise null.
+     */
+    @JvmStatic
+    fun invalidateQuery(
+        context: Context,
+        apiClass: Class<*>,
+        template: String,
+        bindings: Map<String, Any?>,
+    ): String? {
+        val key = NetworkCacheKeyResolver().buildQueryKey(apiClass, template, bindings)
+            ?: return null
+        invalidateQueryKey(context, key)
+        return key
+    }
+
+    /**
      * Clears all persisted Retrostash state.
      *
      * @param context application context used for persistent cache/invalidation storage.

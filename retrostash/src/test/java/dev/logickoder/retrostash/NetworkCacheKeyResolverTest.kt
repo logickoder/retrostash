@@ -201,4 +201,34 @@ class NetworkCacheKeyResolverTest {
         assertEquals(2, logs.size)
         assertTrue(logs[1].startsWith("[Retrostash] found mutation keys -> TestApi|users/7?q=qv&tenant=tenant-x|"))
     }
+
+    @Test
+    fun builds_external_query_key_from_template_and_bindings() {
+        val key = resolver.buildQueryKey(
+            apiClass = TestApi::class.java,
+            template = "users/{id}?q={q}&tenant={tenant}",
+            bindings = mapOf(
+                "id" to "42",
+                "q" to "retro",
+                "tenant" to "acme",
+            ),
+        )
+
+        assertNotNull(key)
+        assertTrue(key!!.startsWith("TestApi|users/42?q=retro&tenant=acme|"))
+    }
+
+    @Test
+    fun returns_null_for_external_query_key_when_bindings_are_missing() {
+        val key = resolver.buildQueryKey(
+            apiClass = TestApi::class.java,
+            template = "users/{id}?q={q}&tenant={tenant}",
+            bindings = mapOf(
+                "id" to "42",
+                "q" to "retro",
+            ),
+        )
+
+        assertNull(key)
+    }
 }

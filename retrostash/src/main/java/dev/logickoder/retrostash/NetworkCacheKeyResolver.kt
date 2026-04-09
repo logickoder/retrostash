@@ -23,6 +23,22 @@ class NetworkCacheKeyResolver(
 ) {
 
     /**
+     * Builds the internal query key format from a [CacheQuery] template and explicit bindings.
+     */
+    fun buildQueryKey(
+        apiClass: Class<*>,
+        template: String,
+        bindings: Map<String, Any?>,
+    ): String? {
+        val stringBindings = bindings.mapNotNull { (name, value) ->
+            externalBindingAsString(value)?.let { name to it }
+        }.toMap()
+        val key = buildKey(apiClass.simpleName, template, stringBindings) ?: return null
+        log("query key (external) -> $key")
+        return key
+    }
+
+    /**
      * Resolves [QueryContext] for requests annotated with [CacheQuery].
      */
     fun resolveQueryContext(request: Request): QueryContext? {
@@ -78,12 +94,22 @@ class NetworkCacheKeyResolver(
             }
         }
 
+        return buildKey(method.declaringClass.simpleName, template, bindings)
+    }
+
+    private fun buildKey(scopeName: String, template: String, bindings: Map<String, String>): String? {
+        if (template.isBlank()) return null
+        val placeholders = PLACEHOLDER_REGEX.findAll(template)
+            .map { it.groupValues[1] }
+            .distinct()
+            .toList()
         if (!placeholders.all { bindings.containsKey(it) }) return null
 
         val resolved = PLACEHOLDER_REGEX.replace(template) { bindings[it.groupValues[1]].orEmpty() }
-        val hash =
-            sha256(placeholders.sorted().joinToString("|") { "$it=${bindings[it].orEmpty()}" })
-        return "${method.declaringClass.simpleName}|$resolved|$hash"
+        val hash = sha256(
+            placeholders.sorted().joinToString("|") { "$it=${bindings[it].orEmpty()}" }
+        )
+        return "$scopeName|$resolved|$hash"
     }
 
     private fun traverseAny(root: Any, fieldName: String): String? {
@@ -168,6 +194,12 @@ class NetworkCacheKeyResolver(
         is Char -> value.toString()
         is Enum<*> -> value.name
         else -> null
+    }
+
+    private fun externalBindingAsString(value: Any?): String? = when (value) {
+        null -> null
+        is Enum<*> -> value.name
+        else -> value.toString()
     }
 
     private fun sha256(value: String): String =
