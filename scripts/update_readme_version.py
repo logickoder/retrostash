@@ -16,7 +16,7 @@ def update_readme_version(tag_name: str, readme_path: Path) -> int:
         flags=re.MULTILINE,
     )
     updated, example_count = example_pattern.subn(
-        rf"\1{tag_name}\2",
+        rf"\g<1>{tag_name}\g<2>",
         updated,
         count=1,
     )

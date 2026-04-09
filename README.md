@@ -64,7 +64,7 @@ dependencies {
 }
 ```
 
-The README example version is updated automatically on release to match the latest tag.
+The README version is updated automatically on release to match the latest tag.
 
 ### 2) Annotate Retrofit service
 
