@@ -97,14 +97,37 @@ jobs:
           tag_name = os.environ["TAG_NAME"]
           readme = Path("README.md")
           text = readme.read_text()
-          updated = re.sub(
-              r'implementation\("com\.github\.logickoder:retrostash:v[^"\\)]+"\)',
-              f'implementation("com.github.logickoder:retrostash:{tag_name}")',
-              text,
+            updated = text
+
+            # Prefer updating the explicit example bullet line when present.
+            example_pattern = re.compile(
+              r'(^\s*-\s*`?implementation\("com\.github\.logickoder:retrostash:)[^"`\)]+("\)`?\s*$)',
+              flags=re.MULTILINE,
+            )
+            updated, example_count = example_pattern.subn(
+              rf'\1{tag_name}\2',
+              updated,
               count=1,
-          )
-          if updated == text:
-              raise SystemExit("README version line not found")
+            )
+
+            # Fallback: update the first non-placeholder dependency occurrence.
+            if example_count == 0:
+              generic_pattern = re.compile(
+                r'implementation\("com\.github\.logickoder:retrostash:([^"\)]+)"\)'
+              )
+
+              def replace_first(match):
+                current = match.group(1)
+                if current == "<tag>":
+                  return match.group(0)
+                return f'implementation("com.github.logickoder:retrostash:{tag_name}")'
+
+              updated, _ = generic_pattern.subn(replace_first, updated, count=1)
+
+            if updated == text:
+              print("README version line not updated (pattern not found or already current).")
+            else:
+              print(f"README version line updated to {tag_name}.")
           readme.write_text(updated)
           PY
 
