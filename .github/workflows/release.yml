@@ -67,19 +67,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          base_version="${TAG_NAME#v}"
-          if ! echo "$base_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "Tag '$TAG_NAME' is not semver-like (vX.Y.Z), skipping bump."
+          next_snapshot="$(python3 scripts/bump_pom_version.py "${TAG_NAME}" gradle.properties)"
+          if [ "${next_snapshot}" = "SKIPPED" ]; then
+            echo "Tag '${TAG_NAME}' is not semver-like (vX.Y.Z), skipping bump."
             exit 0
           fi
 
-          major=$(echo "$base_version" | cut -d. -f1)
-          minor=$(echo "$base_version" | cut -d. -f2)
-          patch=$(echo "$base_version" | cut -d. -f3)
-          next_patch=$((patch + 1))
-          next_snapshot="${major}.${minor}.${next_patch}-SNAPSHOT"
-
-          sed -i "s/^POM_VERSION=.*/POM_VERSION=${next_snapshot}/" gradle.properties
           echo "Next snapshot: ${next_snapshot}"
           echo "NEXT_SNAPSHOT=${next_snapshot}" >> "$GITHUB_ENV"
 
@@ -88,48 +81,7 @@ jobs:
           TAG_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-
-          python3 - <<'PY'
-          from pathlib import Path
-          import os
-          import re
-
-          tag_name = os.environ["TAG_NAME"]
-          readme = Path("README.md")
-          text = readme.read_text()
-            updated = text
-
-            # Prefer updating the explicit example bullet line when present.
-            example_pattern = re.compile(
-              r'(^\s*-\s*`?implementation\("com\.github\.logickoder:retrostash:)[^"`\)]+("\)`?\s*$)',
-              flags=re.MULTILINE,
-            )
-            updated, example_count = example_pattern.subn(
-              rf'\1{tag_name}\2',
-              updated,
-              count=1,
-            )
-
-            # Fallback: update the first non-placeholder dependency occurrence.
-            if example_count == 0:
-              generic_pattern = re.compile(
-                r'implementation\("com\.github\.logickoder:retrostash:([^"\)]+)"\)'
-              )
-
-              def replace_first(match):
-                current = match.group(1)
-                if current == "<tag>":
-                  return match.group(0)
-                return f'implementation("com.github.logickoder:retrostash:{tag_name}")'
-
-              updated, _ = generic_pattern.subn(replace_first, updated, count=1)
-
-            if updated == text:
-              print("README version line not updated (pattern not found or already current).")
-            else:
-              print(f"README version line updated to {tag_name}.")
-          readme.write_text(updated)
-          PY
+          python3 scripts/update_readme_version.py "${TAG_NAME}"
 
       - name: Commit and push
         env:
