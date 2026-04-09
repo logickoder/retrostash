@@ -2,6 +2,9 @@
 
 Retrostash is an Android library for annotation-driven query caching with Retrofit + OkHttp.
 
+[![GitHub Release](https://img.shields.io/github/v/release/logickoder/retrostash?label=release)](https://github.com/logickoder/retrostash/releases)
+[![JitPack](https://jitpack.io/v/logickoder/retrostash.svg)](https://jitpack.io/#logickoder/retrostash)
+
 It provides:
 
 - GET cache header policy for HTTP cache friendliness
@@ -65,6 +68,8 @@ Example:
 
 - `implementation("com.github.logickoder:retrostash:v0.1.0")`
 
+The README example version is updated automatically on release to match the latest tag.
+
 ### 2) Annotate Retrofit service
 
 ```kotlin
@@ -90,7 +95,13 @@ data class UserRequest(val tenant: String)
 ### 3) Install Retrostash in OkHttp
 
 ```kotlin
+val cache = Cache(
+    directory = File(appContext.cacheDir, "http-cache"),
+    maxSize = 10L * 1024L * 1024L,
+)
+
 val okHttpBuilder = OkHttpClient.Builder()
+    .cache(cache)
 
 Retrostash.install(
     builder = okHttpBuilder,
@@ -108,6 +119,10 @@ Retrostash.install(
 
 val okHttpClient = okHttpBuilder.build()
 ```
+
+If you want ordinary GET responses to be stored and reused, keep the OkHttp cache configured.
+Retrostash rewrites cache-control headers and handles POST replay plus mutation invalidation, but
+OkHttp still owns the actual HTTP cache storage for normal GET caching.
 
 ### 4) Build Retrofit
 
@@ -131,6 +146,9 @@ Placeholder sources:
 If any placeholder cannot be resolved, the key is treated as unresolved and that cache action is
 skipped.
 
+When using `@CacheMutate`, include every related query template in `invalidate`, including
+POST-based query templates if you use `@CacheQuery` on POST endpoints.
+
 ## Clearing Cache
 
 ```kotlin
@@ -146,6 +164,9 @@ Use it when you want visibility into:
 - response source labels
 - dirty-key invalidation
 - persisted POST cache writes and hits
+
+It is especially useful when you want to confirm whether a response came from Retrostash's
+persisted POST cache, the OkHttp cache, or the network.
 
 ## Notes
 

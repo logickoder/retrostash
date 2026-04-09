@@ -15,6 +15,7 @@ import dev.logickoder.retrostash.CacheMutate
 import dev.logickoder.retrostash.CacheQuery
 import dev.logickoder.retrostash.Retrostash
 import dev.logickoder.retrostash.RetrostashConfig
+import okhttp3.Cache
 import okhttp3.OkHttpClient
 import retrofit2.Call
 import retrofit2.Callback
@@ -25,6 +26,7 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Query
+import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
@@ -47,6 +49,12 @@ class MainActivity : AppCompatActivity() {
         val refreshPostsButton: Button = findViewById(R.id.refreshPostsButton)
 
         val okHttpBuilder = OkHttpClient.Builder()
+            .cache(
+                Cache(
+                    directory = File(cacheDir, "http-cache"),
+                    maxSize = 10L * 1024L * 1024L,
+                )
+            )
         Retrostash.install(
             okHttpBuilder,
             applicationContext,
@@ -189,11 +197,21 @@ class MainActivity : AppCompatActivity() {
         @POST("posts")
         fun searchPosts(@Body request: CreatePostRequest): Call<Post>
 
-        @CacheMutate(invalidate = ["posts?userId={userId}"])
+        @CacheMutate(
+            invalidate = [
+                "posts?userId={userId}",
+                "posts/search?userId={userId}",
+            ]
+        )
         @POST("posts")
         fun createPost(@Body request: CreatePostRequest): Call<Post>
 
-        @CacheMutate(invalidate = ["posts?userId={userId}"])
+        @CacheMutate(
+            invalidate = [
+                "posts?userId={userId}",
+                "posts/search?userId={userId}",
+            ]
+        )
         @GET("posts/1")
         fun refreshPosts(@Query("userId") userId: Int): Call<Post>
     }

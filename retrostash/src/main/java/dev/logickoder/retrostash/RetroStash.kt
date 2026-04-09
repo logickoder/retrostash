@@ -23,7 +23,7 @@ object Retrostash {
         context: Context,
         config: RetrostashConfig = RetrostashConfig(),
     ): RetrostashRuntime {
-        val keyResolver = NetworkCacheKeyResolver()
+        val keyResolver = NetworkCacheKeyResolver(logger = config.logger)
         val invalidator = NetworkCacheInvalidator(context, ttlMs = config.invalidationTtlMs)
         val postCacheStore = PostResponseCacheStore(
             context = context,

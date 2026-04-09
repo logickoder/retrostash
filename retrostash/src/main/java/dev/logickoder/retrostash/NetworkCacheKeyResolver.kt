@@ -18,7 +18,9 @@ import java.util.IdentityHashMap
 /**
  * Resolves stable cache keys from Retrofit invocation metadata and key templates.
  */
-class NetworkCacheKeyResolver {
+class NetworkCacheKeyResolver(
+    private val logger: ((String) -> Unit)? = null,
+) {
 
     /**
      * Resolves [QueryContext] for requests annotated with [CacheQuery].
@@ -27,6 +29,7 @@ class NetworkCacheKeyResolver {
         val invocation = request.tag(Invocation::class.java) ?: return null
         val annotation = invocation.method().getAnnotation(CacheQuery::class.java) ?: return null
         val key = resolveKey(invocation, annotation.key) ?: return null
+        log("query key -> $key")
         return QueryContext(key, request.method == "POST")
     }
 
@@ -37,7 +40,11 @@ class NetworkCacheKeyResolver {
         val invocation = request.tag(Invocation::class.java) ?: return emptyList()
         val annotation =
             invocation.method().getAnnotation(CacheMutate::class.java) ?: return emptyList()
-        return annotation.invalidate.mapNotNull { resolveKey(invocation, it) }
+        val keys = annotation.invalidate.mapNotNull { resolveKey(invocation, it) }
+        if (keys.isNotEmpty()) {
+            log("found mutation keys -> ${keys.joinToString()}")
+        }
+        return keys
     }
 
     private fun resolveKey(invocation: Invocation, template: String): String? {
@@ -167,6 +174,10 @@ class NetworkCacheKeyResolver {
         MessageDigest.getInstance("SHA-256")
             .digest(value.toByteArray(StandardCharsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
+
+    private fun log(message: String) {
+        logger?.invoke("[Retrostash] $message")
+    }
 
     companion object {
         private val PLACEHOLDER_REGEX = Regex("\\{([^}]+)\\}")

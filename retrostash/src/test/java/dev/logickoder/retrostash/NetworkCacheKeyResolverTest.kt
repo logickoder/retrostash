@@ -156,4 +156,49 @@ class NetworkCacheKeyResolverTest {
         assertEquals(1, keys.size)
         assertTrue(keys.first().startsWith("TestApi|posts?userId=1|"))
     }
+
+    @Test
+    fun logs_resolved_query_and_mutation_keys() {
+        val logs = mutableListOf<String>()
+        val loggingResolver = NetworkCacheKeyResolver(logger = logs::add)
+
+        val queryMethod = TestApi::class.java.getMethod(
+            "search",
+            String::class.java,
+            String::class.java,
+            SearchRequest::class.java
+        )
+        val queryInvocation =
+            Invocation.of(queryMethod, listOf("42", "retro", SearchRequest(Profile("acme"))))
+        val queryRequest = Request.Builder()
+            .url("https://example.com/users/42")
+            .post("{}".toRequestBody("application/json".toMediaType()))
+            .tag(Invocation::class.java, queryInvocation)
+            .build()
+
+        val mutationMethod = TestApi::class.java.getMethod(
+            "mutate",
+            String::class.java,
+            String::class.java,
+            SearchRequest::class.java
+        )
+        val mutationInvocation =
+            Invocation.of(mutationMethod, listOf("7", "qv", SearchRequest(Profile("tenant-x"))))
+        val mutationRequest = Request.Builder()
+            .url("https://example.com/users/7/mutate")
+            .post("{}".toRequestBody("application/json".toMediaType()))
+            .tag(Invocation::class.java, mutationInvocation)
+            .build()
+
+        assertNotNull(loggingResolver.resolveQueryContext(queryRequest))
+        assertEquals(1, logs.size)
+        assertTrue(logs[0].startsWith("[Retrostash] query key -> TestApi|users/42?q=retro&tenant=acme|"))
+
+        val mutationKeys = loggingResolver.resolveMutationKeys(mutationRequest)
+
+        assertEquals(1, mutationKeys.size)
+        assertTrue(mutationKeys.first().startsWith("TestApi|users/7?q=qv&tenant=tenant-x|"))
+        assertEquals(2, logs.size)
+        assertTrue(logs[1].startsWith("[Retrostash] found mutation keys -> TestApi|users/7?q=qv&tenant=tenant-x|"))
+    }
 }

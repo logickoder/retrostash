@@ -4,6 +4,7 @@ import dev.logickoder.retrostash.interceptor.ResponseSourceInterceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Protocol
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
@@ -79,7 +80,7 @@ class ResponseSourceInterceptorTest {
     fun preserves_retrostash_cache_source_header() {
         val request = Request.Builder()
             .url("https://example.com/posts")
-            .post("{}".toResponseBody("application/json".toMediaType()))
+            .post("{}".toRequestBody("application/json".toMediaType()))
             .build()
 
         val response = Response.Builder()
