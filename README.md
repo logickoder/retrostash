@@ -22,9 +22,8 @@ Retrostash intentionally avoids `Gson` or `Moshi` lock-in by intercepting the ra
 - `@CacheQuery(key = "...")`
 - `@CacheMutate(invalidate = ["..."])`
 - `Retrostash.install(...)`
+- `Retrostash.from(okHttpClient)`
 - `Retrostash.clear(...)`
-- `Retrostash.invalidateQuery(...)`
-- `Retrostash.invalidateQueryKey(...)`
 - `RetrostashConfig`
 
 *Advanced classes remain available for manual wiring:*
@@ -32,7 +31,7 @@ Retrostash intentionally avoids `Gson` or `Moshi` lock-in by intercepting the ra
 - `NetworkCacheInvalidator`
 - `PostResponseCacheStore`
 - `NetworkCachePolicyInterceptor`
-- `CacheInterceptor`
+- `CacheControlInterceptor`
 
 ## How It Works
 
@@ -105,14 +104,14 @@ val okHttpBuilder = OkHttpClient.Builder()
     .cache(cache)
 
 // The simplest setup uses sane defaults:
-Retrostash.install(
+val retrostash = Retrostash.install(
     builder = okHttpBuilder,
     context = appContext
 )
 
 // Or customize TTLs, sizes, and logging:
 /*
-Retrostash.install(
+val retrostash = Retrostash.install(
     builder = okHttpBuilder,
     context = appContext,
     config = RetrostashConfig(
@@ -128,6 +127,9 @@ Retrostash.install(
 */
 
 val okHttpClient = okHttpBuilder.build()
+
+// If needed later, recover the same instance from the built client.
+val sameRetrostash = Retrostash.from(okHttpClient)
 ```
 
 If you want ordinary GET responses to be stored and reused, keep the OkHttp cache configured. Retrostash rewrites cache-control headers and handles POST replay plus mutation invalidation, but OkHttp still owns the actual HTTP cache storage for normal GET caching.
@@ -168,8 +170,9 @@ If you need to invalidate outside interceptor flow, Retrostash can mark query ke
 
 **By template plus bindings:**
 ```kotlin
-Retrostash.invalidateQuery(
-    context = appContext,
+val retrostash = Retrostash.from(okHttpClient) ?: return
+
+retrostash.invalidateQuery(
     apiClass = UserApi::class.java,
     template = "users/{id}?tenant={tenant}",
     bindings = mapOf(
@@ -181,8 +184,9 @@ Retrostash.invalidateQuery(
 
 **By resolved internal key:**
 ```kotlin
-Retrostash.invalidateQueryKey(
-    context = appContext,
+val retrostash = Retrostash.from(okHttpClient) ?: return
+
+retrostash.invalidateQueryKey(
     key = "UserApi|users/42?tenant=acme|...",
 )
 ```
@@ -204,7 +208,7 @@ It is especially useful when you want to confirm whether a response came from Re
 ## Notes
 
 - `NetworkCachePolicyInterceptor` should remain an application interceptor.
-- `CacheControlInterceptor` is installed as both an application and network interceptor by `Retrostash.install(...)`.
+- `CacheControlInterceptor` is installed as a network interceptor by `Retrostash.install(...)`.
 - For manual wiring, keep this ordering to preserve behavior.
 
 ## Contributing and Releases
