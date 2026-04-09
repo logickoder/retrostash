@@ -32,10 +32,28 @@ jobs:
       - name: Publish release artifacts to Maven Local (verification)
         run: ./gradlew :retrostash:publishReleasePublicationToMavenLocal --console=plain
 
+      - name: JitPack compatibility build (verification)
+        run: ./gradlew :retrostash:assembleRelease :retrostash:publishToMavenLocal --console=plain
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+
+      - name: Trigger JitPack build for tag
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          build_log_url="https://jitpack.io/com/github/logickoder/retrostash/${TAG_NAME}/build.log"
+          echo "Triggering JitPack build: ${build_log_url}"
+
+          # Hitting the build log endpoint warms the build for the requested tag.
+          curl --fail --silent --show-error --location --retry 5 --retry-delay 10 "${build_log_url}" >/dev/null || {
+            echo "JitPack trigger failed (non-blocking)."
+            exit 0
+          }
 
       - name: Write release summary
         env:
@@ -48,6 +66,8 @@ jobs:
             echo "- Release page: https://github.com/${{ github.repository }}/releases/tag/${TAG_NAME}"
             echo "- Module checks: :retrostash:compileReleaseKotlin and :retrostash:testDebugUnitTest"
             echo "- Maven Local verification: :retrostash:publishReleasePublicationToMavenLocal"
+            echo "- JitPack compatibility verification: :retrostash:assembleRelease and :retrostash:publishToMavenLocal"
+            echo "- JitPack build trigger: https://jitpack.io/com/github/logickoder/retrostash/${TAG_NAME}/build.log"
           } >> "$GITHUB_STEP_SUMMARY"
 
   bump-next-snapshot:
