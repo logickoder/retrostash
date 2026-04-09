@@ -66,7 +66,7 @@ dependencies {
 
 Example:
 
-- `implementation("com.github.logickoder:retrostash:v0.1.3")`
+- `implementation("com.github.logickoder:retrostash:v0.1.5")`
 
 The README example version is updated automatically on release to match the latest tag.
 
