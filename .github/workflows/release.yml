@@ -67,7 +67,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          next_snapshot="$(python3 scripts/bump_pom_version.py "${TAG_NAME}" gradle.properties)"
+          next_snapshot="$(python3 "${GITHUB_WORKSPACE}/scripts/bump_pom_version.py" "${TAG_NAME}" "${GITHUB_WORKSPACE}/gradle.properties")"
           if [ "${next_snapshot}" = "SKIPPED" ]; then
             echo "Tag '${TAG_NAME}' is not semver-like (vX.Y.Z), skipping bump."
             exit 0
@@ -81,7 +81,7 @@ jobs:
           TAG_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          python3 scripts/update_readme_version.py "${TAG_NAME}"
+          python3 "${GITHUB_WORKSPACE}/scripts/update_readme_version.py" "${TAG_NAME}"
 
       - name: Commit and push
         env:
