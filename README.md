@@ -29,6 +29,7 @@ Advanced classes remain available for manual wiring:
 - `NetworkCacheInvalidator`
 - `PostResponseCacheStore`
 - `NetworkCachePolicyInterceptor`
+- `ResponseSourceInterceptor`
 
 ## How It Works
 
@@ -101,6 +102,7 @@ Retrostash.install(
         postCacheMaxEntries = 64,
         postCacheMaxBytes = 4 * 1024 * 1024L,
         postCacheTtlMs = 15 * 60 * 1000L,
+        logger = { message -> Log.d("Retrostash", message) },
     )
 )
 
@@ -135,10 +137,20 @@ skipped.
 Retrostash.clear(appContext)
 ```
 
+### Optional logging
+
+Retrostash accepts an optional `logger` callback in `RetrostashConfig`.
+Use it when you want visibility into:
+
+- cache-control rewrites
+- response source labels
+- dirty-key invalidation
+- persisted POST cache writes and hits
+
 ## Notes
 
 - `NetworkCachePolicyInterceptor` should remain an application interceptor.
-- `CacheInterceptor` is installed as a network interceptor by `Retrostash.install(...)`.
+- `CacheControlInterceptor` is installed as a network interceptor by `Retrostash.install(...)`.
 - For manual wiring, keep this ordering to preserve behavior.
 
 ## Contributing and Releases

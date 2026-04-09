@@ -1,8 +1,9 @@
 package dev.logickoder.retrostash
 
 import android.content.Context
-import dev.logickoder.retrostash.interceptor.CacheInterceptor
+import dev.logickoder.retrostash.interceptor.CacheControlInterceptor
 import dev.logickoder.retrostash.interceptor.NetworkCachePolicyInterceptor
+import dev.logickoder.retrostash.interceptor.ResponseSourceInterceptor
 import okhttp3.OkHttpClient
 
 /**
@@ -30,19 +31,22 @@ object Retrostash {
             maxBytes = config.postCacheMaxBytes,
             ttlMs = config.postCacheTtlMs,
         )
-        val cacheControlInterceptor = CacheInterceptor(
+        val cacheControlInterceptor = CacheControlInterceptor(
             maxAgeSeconds = config.getMaxAgeSeconds,
             enableGetCaching = config.enableGetCaching,
         )
+        val responseSourceInterceptor = ResponseSourceInterceptor(logger = config.logger)
         val networkPolicyInterceptor = NetworkCachePolicyInterceptor(
             keyResolver = keyResolver,
             invalidator = invalidator,
             postCacheStore = postCacheStore,
+            logger = config.logger,
         )
         return RetrostashRuntime(
             keyResolver = keyResolver,
             invalidator = invalidator,
             postCacheStore = postCacheStore,
+            responseSourceInterceptor = responseSourceInterceptor,
             cacheControlInterceptor = cacheControlInterceptor,
             networkPolicyInterceptor = networkPolicyInterceptor,
         )
@@ -63,6 +67,7 @@ object Retrostash {
         config: RetrostashConfig = RetrostashConfig(),
     ): RetrostashRuntime {
         val runtime = create(context, config)
+        builder.addInterceptor(runtime.responseSourceInterceptor)
         builder.addInterceptor(runtime.networkPolicyInterceptor)
         builder.addNetworkInterceptor(runtime.cacheControlInterceptor)
         return runtime

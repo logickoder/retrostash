@@ -4,6 +4,7 @@ package dev.logickoder.retrostash.example
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
@@ -27,14 +28,17 @@ import retrofit2.http.Query
 
 class MainActivity : AppCompatActivity() {
 
+    private val eventLog = ArrayDeque<String>()
     private lateinit var statusText: TextView
     private lateinit var api: ExampleApi
+    private var currentStatus = "Ready to load posts, create a mutation, or trigger cache replay."
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         setContentView(R.layout.activity_main)
+        supportActionBar?.hide()
 
         statusText = findViewById(R.id.statusText)
         val loadPostsButton: Button = findViewById(R.id.loadPostsButton)
@@ -43,7 +47,11 @@ class MainActivity : AppCompatActivity() {
         val refreshPostsButton: Button = findViewById(R.id.refreshPostsButton)
 
         val okHttpBuilder = OkHttpClient.Builder()
-        Retrostash.install(okHttpBuilder, applicationContext, RetrostashConfig())
+        Retrostash.install(
+            okHttpBuilder,
+            applicationContext,
+            RetrostashConfig(logger = ::recordEvent),
+        )
 
         val retrofit = Retrofit.Builder()
             .baseUrl("https://jsonplaceholder.typicode.com/")
@@ -53,6 +61,7 @@ class MainActivity : AppCompatActivity() {
 
         api = retrofit.create(ExampleApi::class.java)
 
+        renderStatus()
         loadPostsButton.setOnClickListener { loadPosts() }
         createPostButton.setOnClickListener { createPost() }
         searchPostsButton.setOnClickListener { searchPostsViaPost() }
@@ -60,80 +69,115 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadPosts() {
-        statusText.text = "Loading posts for userId=1..."
+        updateStatus("Loading posts for userId=1...")
         api.getPosts(1).enqueue(object : Callback<List<Post>> {
             override fun onResponse(call: Call<List<Post>>, response: Response<List<Post>>) {
                 if (!response.isSuccessful || response.body() == null) {
-                    statusText.text = "Load failed: HTTP ${response.code()}"
+                    updateStatus("Load failed: HTTP ${response.code()}")
                     return
                 }
                 val posts = response.body().orEmpty()
                 val firstTitle = posts.firstOrNull()?.title ?: "<none>"
-                statusText.text = "Loaded ${posts.size} posts. First title: $firstTitle"
+                updateStatus("Loaded ${posts.size} posts. First title: $firstTitle")
             }
 
             override fun onFailure(call: Call<List<Post>>, t: Throwable) {
-                statusText.text = "Load failed: ${t.message}"
+                updateStatus("Load failed: ${t.message}")
             }
         })
     }
 
     private fun createPost() {
-        statusText.text = "Creating post for userId=1..."
+        updateStatus("Creating post for userId=1...")
         val request = CreatePostRequest(1, "Retrostash", "Mutation that invalidates query key")
         api.createPost(request).enqueue(object : Callback<Post> {
             override fun onResponse(call: Call<Post>, response: Response<Post>) {
                 if (!response.isSuccessful || response.body() == null) {
-                    statusText.text = "Create failed: HTTP ${response.code()}"
+                    updateStatus("Create failed: HTTP ${response.code()}")
                     return
                 }
                 val created = response.body()!!
-                statusText.text =
-                    "Created post id=${created.id}. Query key for userId=1 was marked dirty."
+                updateStatus(
+                    "Created post id=${created.id}. Query key for userId=1 was marked dirty.",
+                )
             }
 
             override fun onFailure(call: Call<Post>, t: Throwable) {
-                statusText.text = "Create failed: ${t.message}"
+                updateStatus("Create failed: ${t.message}")
             }
         })
     }
 
     private fun searchPostsViaPost() {
-        statusText.text = "Searching posts with POST @CacheQuery..."
+        updateStatus("Searching posts with POST @CacheQuery...")
         val request = CreatePostRequest(1, "Retrostash Query", "POST query example")
         api.searchPosts(request).enqueue(object : Callback<Post> {
             override fun onResponse(call: Call<Post>, response: Response<Post>) {
                 if (!response.isSuccessful || response.body() == null) {
-                    statusText.text = "Search failed: HTTP ${response.code()}"
+                    updateStatus("Search failed: HTTP ${response.code()}")
                     return
                 }
                 val result = response.body()!!
-                statusText.text = "POST query returned post id=${result.id}."
+                updateStatus("POST query returned post id=${result.id}.")
             }
 
             override fun onFailure(call: Call<Post>, t: Throwable) {
-                statusText.text = "Search failed: ${t.message}"
+                updateStatus("Search failed: ${t.message}")
             }
         })
     }
 
     private fun refreshPostsViaGet() {
-        statusText.text = "Refreshing posts with GET @CacheMutate..."
+        updateStatus("Refreshing posts with GET @CacheMutate...")
         api.refreshPosts(1).enqueue(object : Callback<Post> {
             override fun onResponse(call: Call<Post>, response: Response<Post>) {
                 if (!response.isSuccessful || response.body() == null) {
-                    statusText.text = "Refresh failed: HTTP ${response.code()}"
+                    updateStatus("Refresh failed: HTTP ${response.code()}")
                     return
                 }
                 val result = response.body()!!
-                statusText.text =
-                    "GET mutation returned post id=${result.id} and marked keys dirty."
+                updateStatus(
+                    "GET mutation returned post id=${result.id} and marked keys dirty.",
+                )
             }
 
             override fun onFailure(call: Call<Post>, t: Throwable) {
-                statusText.text = "Refresh failed: ${t.message}"
+                updateStatus("Refresh failed: ${t.message}")
             }
         })
+    }
+
+    private fun updateStatus(message: String) {
+        currentStatus = message
+        renderStatus()
+    }
+
+    private fun recordEvent(message: String) {
+        Log.d("RetrostashSample", message)
+        statusText.post {
+            synchronized(eventLog) {
+                eventLog.addLast(message)
+                while (eventLog.size > 5) {
+                    eventLog.removeFirst()
+                }
+            }
+            renderStatus()
+        }
+    }
+
+    private fun renderStatus() {
+        val recentEvents = synchronized(eventLog) { eventLog.toList() }
+        statusText.text = buildString {
+            append(currentStatus)
+            if (recentEvents.isNotEmpty()) {
+                append("\n\nRecent events:\n")
+                recentEvents.forEach { event ->
+                    append("- ")
+                    append(event)
+                    append('\n')
+                }
+            }
+        }.trimEnd()
     }
 
     interface ExampleApi {

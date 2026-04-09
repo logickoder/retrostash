@@ -1,8 +1,6 @@
 package dev.logickoder.retrostash
 
-import dev.logickoder.retrostash.interceptor.CacheInterceptor
-import okhttp3.Call
-import okhttp3.Connection
+import dev.logickoder.retrostash.interceptor.CacheControlInterceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Protocol
 import okhttp3.Request
@@ -17,9 +15,8 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Query
-import java.util.concurrent.TimeUnit
 
-class CacheInterceptorTest {
+class CacheControlInterceptorTest {
 
     interface InterceptorApi {
         @CacheMutate(invalidate = ["posts?userId={userId}"])
@@ -47,8 +44,8 @@ class CacheInterceptorTest {
             .build()
         val baseResponse = baseResponse(request)
 
-        val interceptor = CacheInterceptor()
-        val result = interceptor.intercept(FakeChain(request, baseResponse))
+        val interceptor = CacheControlInterceptor()
+        val result = interceptor.intercept(TestInterceptorChain(request, baseResponse))
 
         assertEquals("no-store", result.header("Cache-Control"))
         assertNull(result.header("Pragma"))
@@ -65,8 +62,8 @@ class CacheInterceptorTest {
             .build()
         val baseResponse = baseResponse(request)
 
-        val interceptor = CacheInterceptor(maxAgeSeconds = 30, enableGetCaching = true)
-        val result = interceptor.intercept(FakeChain(request, baseResponse))
+        val interceptor = CacheControlInterceptor(maxAgeSeconds = 30, enableGetCaching = true)
+        val result = interceptor.intercept(TestInterceptorChain(request, baseResponse))
 
         assertEquals("public, max-age=30", result.header("Cache-Control"))
         assertNull(result.header("Pragma"))
@@ -82,8 +79,8 @@ class CacheInterceptorTest {
             .header("Cache-Control", "private")
             .build()
 
-        val interceptor = CacheInterceptor()
-        val result = interceptor.intercept(FakeChain(request, baseResponse))
+        val interceptor = CacheControlInterceptor()
+        val result = interceptor.intercept(TestInterceptorChain(request, baseResponse))
 
         assertEquals("private", result.header("Cache-Control"))
     }
@@ -99,8 +96,8 @@ class CacheInterceptorTest {
             .build()
         val baseResponse = baseResponse(request)
 
-        val interceptor = CacheInterceptor()
-        val result = interceptor.intercept(FakeChain(request, baseResponse))
+        val interceptor = CacheControlInterceptor()
+        val result = interceptor.intercept(TestInterceptorChain(request, baseResponse))
 
         assertEquals("no-store", result.header("Cache-Control"))
         assertNull(result.header("Pragma"))
@@ -116,33 +113,4 @@ class CacheInterceptorTest {
         .header("Cache-Control", "private")
         .build()
 
-    private class FakeChain(
-        private val request: Request,
-        private val response: Response,
-    ) : okhttp3.Interceptor.Chain {
-        override fun request(): Request = request
-
-        override fun proceed(request: Request): Response =
-            response.newBuilder().request(request).build()
-
-        override fun connection(): Connection? = null
-
-        override fun call(): Call {
-            throw UnsupportedOperationException("Not required for unit tests")
-        }
-
-        override fun connectTimeoutMillis(): Int = 10_000
-
-        override fun withConnectTimeout(timeout: Int, unit: TimeUnit): okhttp3.Interceptor.Chain =
-            this
-
-        override fun readTimeoutMillis(): Int = 10_000
-
-        override fun withReadTimeout(timeout: Int, unit: TimeUnit): okhttp3.Interceptor.Chain = this
-
-        override fun writeTimeoutMillis(): Int = 10_000
-
-        override fun withWriteTimeout(timeout: Int, unit: TimeUnit): okhttp3.Interceptor.Chain =
-            this
-    }
 }

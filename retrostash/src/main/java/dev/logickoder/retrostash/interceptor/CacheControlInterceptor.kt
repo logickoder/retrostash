@@ -6,9 +6,9 @@ import okhttp3.Response
 import retrofit2.Invocation
 
 /**
- * Rewrites cache headers for annotated Retrofit methods.
+ * Rewrites cache-control headers for annotated Retrofit methods.
  */
-internal class CacheInterceptor(
+internal class CacheControlInterceptor(
     private val maxAgeSeconds: Long = 24 * 60 * 60L,
     private val enableGetCaching: Boolean = true
 ) : Interceptor {

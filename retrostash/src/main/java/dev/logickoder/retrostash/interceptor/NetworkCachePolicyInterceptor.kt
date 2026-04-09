@@ -2,6 +2,8 @@ package dev.logickoder.retrostash.interceptor
 
 import dev.logickoder.retrostash.NetworkCacheInvalidator
 import dev.logickoder.retrostash.NetworkCacheKeyResolver
+import dev.logickoder.retrostash.interceptor.ResponseSourceInterceptor.Companion.HEADER_RETROSTASH_SOURCE
+import dev.logickoder.retrostash.interceptor.ResponseSourceInterceptor.Companion.SOURCE_RETROSTASH_CACHE
 import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -22,7 +24,8 @@ import dev.logickoder.retrostash.PostResponseCacheStore
 class NetworkCachePolicyInterceptor(
     private val keyResolver: NetworkCacheKeyResolver,
     private val invalidator: NetworkCacheInvalidator,
-    private val postCacheStore: PostResponseCacheStore
+    private val postCacheStore: PostResponseCacheStore,
+    private val logger: ((String) -> Unit)? = null,
 ) : Interceptor {
 
     /** Intercepts requests and enforces Retrostash query/mutation policy. */
@@ -33,12 +36,14 @@ class NetworkCachePolicyInterceptor(
 
         if (ctx != null) {
             if (invalidator.isDirty(ctx.key)) {
+                log("dirty key -> forcing network refresh for ${ctx.key}")
                 request = request.newBuilder()
-                    .header(CacheInterceptor.HEADER_CACHE_CONTROL, "no-cache")
+                    .header(CacheControlInterceptor.HEADER_CACHE_CONTROL, "no-cache")
                     .build()
                 consumedAfterSuccessKey = ctx.key
             } else if (ctx.isPost) {
                 postCacheStore.get(ctx.key)?.let { cached ->
+                    log("cache hit -> serving ${ctx.key} from disk")
                     return Response.Builder()
                         .request(request)
                         .protocol(Protocol.HTTP_1_1)
@@ -51,6 +56,7 @@ class NetworkCachePolicyInterceptor(
                                 }
                             }.build()
                         )
+                        .header(HEADER_RETROSTASH_SOURCE, SOURCE_RETROSTASH_CACHE)
                         .body(cached.body.toResponseBody(cached.contentType?.toMediaTypeOrNull()))
                         .build()
                 }
@@ -64,7 +70,10 @@ class NetworkCachePolicyInterceptor(
         consumedAfterSuccessKey?.let { invalidator.clearDirty(it) }
 
         val mutationKeys = keyResolver.resolveMutationKeys(request)
-        if (mutationKeys.isNotEmpty()) invalidator.markDirty(mutationKeys)
+        if (mutationKeys.isNotEmpty()) {
+            log("mutation success -> dirty keys ${mutationKeys.joinToString()}")
+            invalidator.markDirty(mutationKeys)
+        }
 
         if (ctx?.isPost != true) return response
 
@@ -85,9 +94,14 @@ class NetworkCachePolicyInterceptor(
             statusMessage = response.message,
             headers = headers,
         )
+        log("cache store -> saved ${ctx.key} from network response")
 
         return response.newBuilder()
             .body(bytes.toResponseBody(body.contentType()))
             .build()
+    }
+
+    private fun log(message: String) {
+        logger?.invoke("[Retrostash] $message")
     }
 }
