@@ -1,46 +1,48 @@
 # Retrostash
 
-Retrostash is an Android library for annotation-driven query caching with Retrofit + OkHttp.
+**Retrostash** is an annotation-driven caching layer for Retrofit and OkHttp. It solves two massive pain points in Android networking: caching non-idempotent queries (like `POST` searches or GraphQL) and automatically invalidating cached data when mutations (like `POST` or `PUT` updates) occur.
 
 [![GitHub Release](https://img.shields.io/github/v/release/logickoder/retrostash?label=release)](https://github.com/logickoder/retrostash/releases)
 [![JitPack](https://jitpack.io/v/logickoder/retrostash.svg)](https://jitpack.io/#logickoder/retrostash)
 
-It provides:
+### Key Features
+- **Persisted POST query caching:** Safely cache complex payloads like searches and GraphQL.
+- **Mutation-driven cache invalidation:** Automatically clear stale data when a user updates a resource.
+- **Dynamic key resolution:** Cache templates are resolved directly from `@Path`, `@Query`, and `@Body` parameters.
+- **HTTP cache friendliness:** Includes GET cache header policies that work seamlessly with OkHttp.
 
-- GET cache header policy for HTTP cache friendliness
-- persisted POST query caching
-- mutation-driven cache invalidation
-- cache key templates resolved from `@Path`, `@Query`, and `@Body`
+### 100% Converter Agnostic
+Retrostash intentionally avoids `Gson` or `Moshi` lock-in by intercepting the raw OkHttp `RequestBody`. Key resolution works seamlessly with plain Kotlin/Java objects, Maps, Arrays, and Android `JSONObject`, regardless of your chosen serialization library.
 
-The module intentionally avoids Gson lock-in. Key resolution works with plain Kotlin/Java objects,
-maps/arrays/iterables, and Android `JSONObject` / `JSONArray`.
+---
 
 ## Public API
 
-Primary API surface:
-
+**Primary API surface:**
 - `@CacheQuery(key = "...")`
 - `@CacheMutate(invalidate = ["..."])`
 - `Retrostash.install(...)`
-- `Retrostash.create(...)`
 - `Retrostash.clear(...)`
+- `Retrostash.invalidateQuery(...)`
+- `Retrostash.invalidateQueryKey(...)`
 - `RetrostashConfig`
 
-Advanced classes remain available for manual wiring:
-
+*Advanced classes remain available for manual wiring:*
 - `NetworkCacheKeyResolver`
 - `NetworkCacheInvalidator`
 - `PostResponseCacheStore`
 - `NetworkCachePolicyInterceptor`
-- `ResponseSourceInterceptor`
+- `CacheInterceptor`
 
 ## How It Works
 
 1. Query methods are annotated with `@CacheQuery` and a template key.
 2. Mutation methods are annotated with `@CacheMutate` and invalidation templates.
 3. On successful mutation responses, resolved invalidation keys are marked dirty.
-4. Dirty query keys force a network refresh.
-5. Successful POST query responses can be persisted and replayed when key is clean.
+4. Dirty query keys force a network refresh on the next call.
+5. Successful POST query responses can be persisted and replayed when the key is clean.
+
+---
 
 ## Integration (Recommended)
 
@@ -52,7 +54,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven("https://jitpack.io")
+        maven("[https://jitpack.io](https://jitpack.io)")
     }
 }
 ```
@@ -60,28 +62,31 @@ dependencyResolutionManagement {
 ```kotlin
 // module build.gradle.kts
 dependencies {
-    implementation("com.github.logickoder:retrostash:0.0.2")
+    implementation("com.github.logickoder:retrostash:1.0.0")
 }
 ```
 
-The README version is updated automatically on release to match the latest tag.
+*The README version is updated automatically on release to match the latest tag.*
 
 ### 2) Annotate Retrofit service
 
 ```kotlin
 interface UserApi {
+    
+    // 1. A complex POST query that we want to cache locally
     @CacheQuery("users/{id}?tenant={tenant}")
     @POST("users/{id}")
     suspend fun getUser(
         @Path("id") id: String,
-        @Body req: UserRequest,
+        @Body req: UserRequest, // Retrostash automatically extracts {tenant} from this body
     ): UserResponse
 
+    // 2. A mutation that immediately invalidates the cache from #1
     @CacheMutate(invalidate = ["users/{id}?tenant={tenant}"])
     @POST("users/{id}/update")
     suspend fun updateUser(
         @Path("id") id: String,
-        @Body req: UpdateUserRequest,
+        @Body req: UpdateUserRequest, // Retrostash builds the invalidation key from these parameters
     ): UpdateUserResponse
 }
 
@@ -99,6 +104,14 @@ val cache = Cache(
 val okHttpBuilder = OkHttpClient.Builder()
     .cache(cache)
 
+// The simplest setup uses sane defaults:
+Retrostash.install(
+    builder = okHttpBuilder,
+    context = appContext
+)
+
+// Or customize TTLs, sizes, and logging:
+/*
 Retrostash.install(
     builder = okHttpBuilder,
     context = appContext,
@@ -112,38 +125,36 @@ Retrostash.install(
         logger = { message -> Log.d("Retrostash", message) },
     )
 )
+*/
 
 val okHttpClient = okHttpBuilder.build()
 ```
 
-If you want ordinary GET responses to be stored and reused, keep the OkHttp cache configured.
-Retrostash rewrites cache-control headers and handles POST replay plus mutation invalidation, but
-OkHttp still owns the actual HTTP cache storage for normal GET caching.
+If you want ordinary GET responses to be stored and reused, keep the OkHttp cache configured. Retrostash rewrites cache-control headers and handles POST replay plus mutation invalidation, but OkHttp still owns the actual HTTP cache storage for normal GET caching.
 
 ### 4) Build Retrofit
 
 ```kotlin
 val retrofit = Retrofit.Builder()
-    .baseUrl("https://api.example.com/")
+    .baseUrl("[https://api.example.com/](https://api.example.com/)")
     .client(okHttpClient)
     .build()
 ```
+
+---
 
 ## Template Rules
 
 Templates use `{placeholder}` syntax.
 
 Placeholder sources:
-
 - `@Path("name")`
 - `@Query("name")`
-- matching field names found recursively in `@Body`
+- Matching field names found recursively in `@Body`
 
-If any placeholder cannot be resolved, the key is treated as unresolved and that cache action is
-skipped.
+If any placeholder cannot be resolved, the key is treated as unresolved and that cache action is skipped safely.
 
-When using `@CacheMutate`, include every related query template in `invalidate`, including
-POST-based query templates if you use `@CacheQuery` on POST endpoints.
+When using `@CacheMutate`, include every related query template in `invalidate`, including POST-based query templates if you use `@CacheQuery` on POST endpoints.
 
 ## Clearing Cache
 
@@ -155,8 +166,7 @@ Retrostash.clear(appContext)
 
 If you need to invalidate outside interceptor flow, Retrostash can mark query keys dirty directly.
 
-By template plus bindings:
-
+**By template plus bindings:**
 ```kotlin
 Retrostash.invalidateQuery(
     context = appContext,
@@ -169,8 +179,7 @@ Retrostash.invalidateQuery(
 )
 ```
 
-By resolved internal key:
-
+**By resolved internal key:**
 ```kotlin
 Retrostash.invalidateQueryKey(
     context = appContext,
@@ -180,30 +189,29 @@ Retrostash.invalidateQueryKey(
 
 This applies to both GET and POST queries annotated with `@CacheQuery`.
 
-### Optional logging
+### Optional Logging
 
-Retrostash accepts an optional `logger` callback in `RetrostashConfig`.
-Use it when you want visibility into:
+Retrostash accepts an optional `logger` callback in `RetrostashConfig`. Use it when you want visibility into:
+- Cache-control rewrites
+- Response source labels
+- Dirty-key invalidations
+- Persisted POST cache writes and hits
 
-- cache-control rewrites
-- response source labels
-- dirty-key invalidation
-- persisted POST cache writes and hits
+It is especially useful when you want to confirm whether a response came from Retrostash's persisted POST cache, the standard OkHttp cache, or the network.
 
-It is especially useful when you want to confirm whether a response came from Retrostash's
-persisted POST cache, the OkHttp cache, or the network.
+---
 
 ## Notes
 
 - `NetworkCachePolicyInterceptor` should remain an application interceptor.
-- `CacheControlInterceptor` is installed as a network interceptor by `Retrostash.install(...)`.
+- `CacheControlInterceptor` is installed as both an application and network interceptor by `Retrostash.install(...)`.
 - For manual wiring, keep this ordering to preserve behavior.
 
 ## Contributing and Releases
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for:
-
-- contribution workflow
-- local Maven publishing
-- release/versioning flow
-- auto-deployment behavior after tags
+- Contribution workflow
+- Local Maven publishing
+- Release/versioning flow
+- Auto-deployment behavior after tags
+```
