@@ -13,6 +13,7 @@ import retrofit2.Invocation
 
 class RetrostashOkHttpInterceptor(
     private val engine: RetrostashEngine,
+    private val config: RetrostashOkHttpConfig = RetrostashOkHttpConfig(),
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
@@ -39,7 +40,7 @@ class RetrostashOkHttpInterceptor(
                     .protocol(Protocol.HTTP_1_1)
                     .code(200)
                     .message("OK")
-                    .addHeader("x-retrostash-source", "cache")
+                    .addHeader(HEADER_RETROSTASH_SOURCE, SOURCE_RETROSTASH_CACHE)
                     .body(cached.toResponseBody(detectContentType(request)))
                     .build()
             }
@@ -47,7 +48,7 @@ class RetrostashOkHttpInterceptor(
 
         val networkResponse = chain.proceed(request)
         if (!networkResponse.isSuccessful) {
-            return networkResponse
+            return markResponseSource(networkResponse)
         }
 
         val bodyBytes = requestBodyBytes(request)
@@ -77,7 +78,45 @@ class RetrostashOkHttpInterceptor(
             }
         }
 
-        return networkResponse
+        return rewriteCacheControl(markResponseSource(networkResponse), request, metadata)
+    }
+
+    private fun rewriteCacheControl(
+        response: Response,
+        request: okhttp3.Request,
+        metadata: OkHttpRetrostashMetadata?,
+    ): Response {
+        return when {
+            !metadata?.invalidateTemplates.isNullOrEmpty() -> response.newBuilder()
+                .removeHeader(HEADER_PRAGMA)
+                .removeHeader(HEADER_CACHE_CONTROL)
+                .header(HEADER_CACHE_CONTROL, "no-store")
+                .build()
+
+            request.method == "GET" && config.enableGetCaching -> response.newBuilder()
+                .removeHeader(HEADER_PRAGMA)
+                .removeHeader(HEADER_CACHE_CONTROL)
+                .header(HEADER_CACHE_CONTROL, "public, max-age=${config.getMaxAgeSeconds}")
+                .build()
+
+            else -> response
+        }
+    }
+
+    private fun markResponseSource(response: Response): Response {
+        if (!response.header(HEADER_RETROSTASH_SOURCE).isNullOrBlank()) return response
+
+        val source = when {
+            response.cacheResponse != null && response.networkResponse == null -> SOURCE_OKHTTP_CACHE
+            response.cacheResponse != null && response.networkResponse != null -> SOURCE_OKHTTP_VALIDATED_CACHE
+            response.networkResponse != null -> SOURCE_NETWORK
+            else -> SOURCE_NETWORK
+        }
+
+        config.logger?.invoke("[Retrostash] response source -> $source for ${response.request.method} ${response.request.url}")
+        return response.newBuilder()
+            .header(HEADER_RETROSTASH_SOURCE, source)
+            .build()
     }
 
     private fun detectContentType(request: okhttp3.Request) =
@@ -120,6 +159,13 @@ class RetrostashOkHttpInterceptor(
     }
 
     companion object {
+        private const val HEADER_RETROSTASH_SOURCE = "X-Retrostash-Source"
+        private const val SOURCE_RETROSTASH_CACHE = "retrostash-cache"
+        private const val SOURCE_OKHTTP_CACHE = "okhttp-cache"
+        private const val SOURCE_OKHTTP_VALIDATED_CACHE = "okhttp-validated-cache"
+        private const val SOURCE_NETWORK = "network"
+        private const val HEADER_CACHE_CONTROL = "Cache-Control"
+        private const val HEADER_PRAGMA = "Pragma"
         private val PLACEHOLDER_REGEX = Regex("\\{([^}]+)\\}")
     }
 }
