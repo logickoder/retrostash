@@ -24,6 +24,9 @@ class InMemoryRetrostashStore : RetrostashStore {
     }
 
     override suspend fun invalidate(template: String) {
+        if (entries.remove(template) != null) {
+            return
+        }
         val marker = "|$template|"
         val keysToRemove = entries.keys.filter { key -> key.contains(marker) }
         keysToRemove.forEach(entries::remove)

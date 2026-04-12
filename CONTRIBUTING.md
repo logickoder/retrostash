@@ -98,3 +98,16 @@ dependencies {
 2. Add or update tests for behavior changes.
 3. Keep KDoc current for public APIs.
 4. Ensure all module checks pass before opening a PR.
+
+## Pull Request Checklist (Required)
+
+Before requesting review, confirm all items below.
+
+1. I followed the strict rules in [development.md](development.md).
+2. I added tests for every behavior change in this PR.
+3. I added a regression test for each bug fix in this PR.
+4. I ran affected module checks locally and they passed.
+5. I updated docs/KDoc for all public API changes.
+6. I did not bundle unrelated refactors with this change.
+
+PRs that fail checklist items are not considered merge-ready.

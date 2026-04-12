@@ -24,8 +24,15 @@ internal object RetrofitMetadataExtractor {
             queryTemplate = queryAnn?.key,
             maxAgeMs = ((queryAnn?.maxAgeSeconds ?: 0L).coerceAtLeast(0L) * 1000L),
             bindings = bindings,
-            invalidateTemplates = mutateAnn?.invalidates?.toList().orEmpty(),
+            invalidateTemplates = resolveInvalidateTemplates(mutateAnn),
         )
+    }
+
+    private fun resolveInvalidateTemplates(annotation: CacheMutate?): List<String> {
+        if (annotation == null) return emptyList()
+        val oldShape = annotation.invalidate.toList()
+        if (oldShape.isNotEmpty()) return oldShape
+        return annotation.invalidates.toList()
     }
 
     private fun extractBindings(
