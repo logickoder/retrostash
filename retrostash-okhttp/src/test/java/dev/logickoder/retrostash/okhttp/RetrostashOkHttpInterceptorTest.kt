@@ -13,6 +13,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
 import okio.BufferedSink
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.concurrent.TimeUnit
 
@@ -71,6 +72,59 @@ class RetrostashOkHttpInterceptorTest {
 
         val response = interceptor.intercept(chain)
         assertEquals("no-store", response.header("Cache-Control"))
+    }
+
+    @Test
+    fun cache_replay_preserves_status_message_headers_and_content_type() {
+        val interceptor = RetrostashOkHttpInterceptor(
+            engine = RetrostashEngine(InMemoryRetrostashStore()),
+            config = RetrostashOkHttpConfig(enableGetCaching = false),
+        )
+
+        val request = Request.Builder()
+            .url("https://example.com/feed/7")
+            .retrostashQuery(
+                scopeName = "FeedApi",
+                template = "feed/{id}",
+                bindings = mapOf("id" to "7"),
+                maxAgeMs = 60_000L,
+            )
+            .build()
+
+        val seedChain = FakeChain(request) { req ->
+            Response.Builder()
+                .request(req)
+                .protocol(Protocol.HTTP_1_1)
+                .code(202)
+                .message("Accepted")
+                .addHeader("X-Origin", "network")
+                .body("seed".toResponseBody("text/plain".toMediaTypeOrNull()))
+                .build()
+        }
+
+        interceptor.intercept(seedChain)
+
+        var proceeded = 0
+        val replayChain = FakeChain(request) { req ->
+            proceeded += 1
+            Response.Builder()
+                .request(req)
+                .protocol(Protocol.HTTP_1_1)
+                .code(500)
+                .message("Should Not Happen")
+                .body("x".toResponseBody("text/plain".toMediaTypeOrNull()))
+                .build()
+        }
+
+        val replay = interceptor.intercept(replayChain)
+
+        assertEquals(0, proceeded)
+        assertEquals(202, replay.code)
+        assertEquals("Accepted", replay.message)
+        assertEquals("network", replay.header("X-Origin"))
+        assertEquals("retrostash-cache", replay.header("X-Retrostash-Source"))
+        assertTrue(replay.body.contentType().toString().startsWith("text/plain"))
+        assertEquals("seed", replay.body.string())
     }
 
     private class FakeChain(

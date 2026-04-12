@@ -4,6 +4,7 @@ import dev.logickoder.retrostash.core.QueryMetadata
 import dev.logickoder.retrostash.core.RetrostashEngine
 import dev.logickoder.retrostash.core.Utf8JsonLookup
 import kotlinx.coroutines.runBlocking
+import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.Protocol
@@ -35,13 +36,26 @@ class RetrostashOkHttpInterceptor(
                 engine.resolveFromCache(resolvedQueryMetadata)
             }
             if (cached != null) {
+                val envelope = CachedHttpEnvelopeCodec.decode(cached)
+                val replay = envelope ?: CachedHttpEnvelope(
+                    payload = cached,
+                    contentType = request.header("Content-Type"),
+                    statusCode = 200,
+                    statusMessage = "OK",
+                    headers = emptyList(),
+                )
                 return Response.Builder()
                     .request(request)
                     .protocol(Protocol.HTTP_1_1)
-                    .code(200)
-                    .message("OK")
+                    .code(replay.statusCode)
+                    .message(replay.statusMessage)
+                    .headers(
+                        Headers.Builder().apply {
+                            replay.headers.forEach { (name, value) -> add(name, value) }
+                        }.build()
+                    )
                     .addHeader(HEADER_RETROSTASH_SOURCE, SOURCE_RETROSTASH_CACHE)
-                    .body(cached.toResponseBody(detectContentType(request)))
+                    .body(replay.payload.toResponseBody(replay.contentType?.toMediaTypeOrNull()))
                     .build()
             }
         }
@@ -60,10 +74,23 @@ class RetrostashOkHttpInterceptor(
                 bodyBytes = bodyBytes,
             )
             val payload = networkResponse.peekBody(Long.MAX_VALUE).bytes()
+            val envelope = CachedHttpEnvelope(
+                payload = payload,
+                contentType = networkResponse.body.contentType().toString(),
+                statusCode = networkResponse.code,
+                statusMessage = networkResponse.message,
+                headers = buildList {
+                    networkResponse.headers.names().forEach { name ->
+                        networkResponse.headers.values(name).forEach { value ->
+                            add(name to value)
+                        }
+                    }
+                },
+            )
             runBlocking {
                 engine.persistQueryResult(
                     metadata = resolvedQueryMetadata,
-                    payload = payload,
+                    payload = CachedHttpEnvelopeCodec.encode(envelope),
                     maxAgeMs = metadata.maxAgeMs,
                 )
             }

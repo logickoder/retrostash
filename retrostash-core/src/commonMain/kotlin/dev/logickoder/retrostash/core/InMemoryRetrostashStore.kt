@@ -36,7 +36,7 @@ class InMemoryRetrostashStore : RetrostashStore {
         entries.clear()
     }
 
-    private data class Entry(
+    private class Entry(
         val payload: ByteArray,
         val createdAt: TimeSource.Monotonic.ValueTimeMark,
         val maxAgeMs: Long,

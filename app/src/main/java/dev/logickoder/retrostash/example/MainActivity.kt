@@ -9,14 +9,30 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.google.gson.GsonBuilder
+import com.google.gson.reflect.TypeToken
 import com.google.gson.annotations.SerializedName
 import dev.logickoder.retrostash.CacheMutate
 import dev.logickoder.retrostash.CacheQuery
-import dev.logickoder.retrostash.Retrostash
-import dev.logickoder.retrostash.RetrostashConfig
+import dev.logickoder.retrostash.ktor.RetrostashKtorMetadata
+import dev.logickoder.retrostash.ktor.RetrostashKtorRuntime
+import dev.logickoder.retrostash.ktor.RetrostashPlugin
+import dev.logickoder.retrostash.okhttp.AndroidRetrostashStore
+import dev.logickoder.retrostash.okhttp.RetrostashOkHttpBridge
+import dev.logickoder.retrostash.okhttp.RetrostashOkHttpConfig
 import okhttp3.Cache
 import okhttp3.OkHttpClient
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.request.get
+import io.ktor.client.request.parameter
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import kotlinx.coroutines.launch
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -31,8 +47,14 @@ import java.io.File
 class MainActivity : AppCompatActivity() {
 
     private val eventLog = ArrayDeque<String>()
+    private val gson = GsonBuilder().create()
+
     private lateinit var statusText: TextView
+    private lateinit var switchTransportButton: Button
     private lateinit var api: ExampleApi
+    private lateinit var ktorClient: HttpClient
+    private lateinit var ktorRuntime: RetrostashKtorRuntime
+    private val transportState = TransportModeState()
     private var currentStatus = "Ready to load posts, create a mutation, or trigger cache replay."
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,10 +65,14 @@ class MainActivity : AppCompatActivity() {
         supportActionBar?.hide()
 
         statusText = findViewById(R.id.statusText)
+        switchTransportButton = findViewById(R.id.switchTransportButton)
         val loadPostsButton: Button = findViewById(R.id.loadPostsButton)
         val createPostButton: Button = findViewById(R.id.createPostButton)
         val searchPostsButton: Button = findViewById(R.id.searchPostsButton)
         val refreshPostsButton: Button = findViewById(R.id.refreshPostsButton)
+
+        val sharedStore = AndroidRetrostashStore(applicationContext, RetrostashOkHttpConfig())
+        ktorRuntime = RetrostashKtorRuntime.create(sharedStore)
 
         val okHttpBuilder = OkHttpClient.Builder()
             .cache(
@@ -55,10 +81,10 @@ class MainActivity : AppCompatActivity() {
                     maxSize = 10L * 1024L * 1024L,
                 )
             )
-        Retrostash.install(
+        RetrostashOkHttpBridge.install(
             okHttpBuilder,
             applicationContext,
-            RetrostashConfig(logger = ::recordEvent),
+            RetrostashOkHttpConfig(logger = ::recordEvent),
         )
 
         val retrofit = Retrofit.Builder()
@@ -68,8 +94,15 @@ class MainActivity : AppCompatActivity() {
             .build()
 
         api = retrofit.create(ExampleApi::class.java)
+        ktorClient = HttpClient(OkHttp) {
+            install(RetrostashPlugin) {
+                store = sharedStore
+                timeoutMs = 250L
+            }
+        }
 
         renderStatus()
+        switchTransportButton.setOnClickListener { toggleTransport() }
         loadPostsButton.setOnClickListener { loadPosts() }
         createPostButton.setOnClickListener { createPost() }
         searchPostsButton.setOnClickListener { searchPostsViaPost() }
@@ -77,6 +110,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadPosts() {
+        if (transportState.mode == TransportMode.KTOR) {
+            loadPostsKtor()
+            return
+        }
         updateStatus("Loading posts for userId=1...")
         api.getPosts(1).enqueue(object : Callback<List<Post>> {
             override fun onResponse(call: Call<List<Post>>, response: Response<List<Post>>) {
@@ -96,6 +133,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun createPost() {
+        if (transportState.mode == TransportMode.KTOR) {
+            createPostKtor()
+            return
+        }
         updateStatus("Creating post for userId=1...")
         val request = CreatePostRequest(1, "Retrostash", "Mutation that invalidates query key")
         api.createPost(request).enqueue(object : Callback<Post> {
@@ -117,6 +158,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun searchPostsViaPost() {
+        if (transportState.mode == TransportMode.KTOR) {
+            searchPostsKtor()
+            return
+        }
         updateStatus("Searching posts with POST @CacheQuery...")
         val request = CreatePostRequest(1, "Retrostash Query", "POST query example")
         api.searchPosts(request).enqueue(object : Callback<Post> {
@@ -136,6 +181,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshPostsViaGet() {
+        if (transportState.mode == TransportMode.KTOR) {
+            refreshPostsKtor()
+            return
+        }
         updateStatus("Refreshing posts with GET @CacheMutate...")
         api.refreshPosts(1).enqueue(object : Callback<Post> {
             override fun onResponse(call: Call<Post>, response: Response<Post>) {
@@ -153,6 +202,126 @@ class MainActivity : AppCompatActivity() {
                 updateStatus("Refresh failed: ${t.message}")
             }
         })
+    }
+
+    private fun toggleTransport() {
+        transportState.toggle()
+        updateStatus("Switched transport to ${transportLabel()}")
+    }
+
+    private fun loadPostsKtor() {
+        lifecycleScope.launch {
+            val metadata = RetrostashKtorMetadata(
+                scopeName = "ExampleApi",
+                queryTemplate = "posts?userId={userId}",
+                bindings = mapOf("userId" to "1"),
+                maxAgeMs = 60_000L,
+            )
+
+            val cached = ktorRuntime.resolveFromCache(metadata)
+            if (cached != null) {
+                val listType = object : TypeToken<List<Post>>() {}.type
+                val posts: List<Post> = gson.fromJson(String(cached), listType)
+                val firstTitle = posts.firstOrNull()?.title ?: "<none>"
+                updateStatus("[Ktor cache] Loaded ${posts.size} posts. First title: $firstTitle")
+                return@launch
+            }
+
+            runCatching {
+                val body = ktorClient.get("https://jsonplaceholder.typicode.com/posts") {
+                    parameter("userId", 1)
+                }.bodyAsText()
+                ktorRuntime.persistQueryResult(metadata, body.encodeToByteArray())
+                val listType = object : TypeToken<List<Post>>() {}.type
+                val posts: List<Post> = gson.fromJson(body, listType)
+                val firstTitle = posts.firstOrNull()?.title ?: "<none>"
+                updateStatus("[Ktor network] Loaded ${posts.size} posts. First title: $firstTitle")
+            }.onFailure {
+                updateStatus("Ktor load failed: ${it.message}")
+            }
+        }
+    }
+
+    private fun createPostKtor() {
+        lifecycleScope.launch {
+            val request = CreatePostRequest(1, "Retrostash", "Mutation that invalidates query key")
+            runCatching {
+                val body = ktorClient.post("https://jsonplaceholder.typicode.com/posts") {
+                    contentType(ContentType.Application.Json)
+                    setBody(gson.toJson(request))
+                }.bodyAsText()
+                ktorRuntime.invalidate(
+                    RetrostashKtorMetadata(
+                        scopeName = "ExampleApi",
+                        bindings = mapOf("userId" to request.userId.toString()),
+                        invalidateTemplates = listOf(
+                            "posts?userId=1",
+                            "posts/search?userId=1",
+                        ),
+                    )
+                )
+                val created = gson.fromJson(body, Post::class.java)
+                updateStatus("[Ktor] Created post id=${created.id}. Query key was marked dirty.")
+            }.onFailure {
+                updateStatus("Ktor create failed: ${it.message}")
+            }
+        }
+    }
+
+    private fun searchPostsKtor() {
+        lifecycleScope.launch {
+            val request = CreatePostRequest(1, "Retrostash Query", "POST query example")
+            val metadata = RetrostashKtorMetadata(
+                scopeName = "ExampleApi",
+                queryTemplate = "posts/search?userId={userId}",
+                bindings = mapOf("userId" to request.userId.toString()),
+                bodyBytes = gson.toJson(request).encodeToByteArray(),
+                maxAgeMs = 60_000L,
+            )
+
+            val cached = ktorRuntime.resolveFromCache(metadata)
+            if (cached != null) {
+                val result = gson.fromJson(String(cached), Post::class.java)
+                updateStatus("[Ktor cache] POST query returned post id=${result.id}.")
+                return@launch
+            }
+
+            runCatching {
+                val body = ktorClient.post("https://jsonplaceholder.typicode.com/posts") {
+                    contentType(ContentType.Application.Json)
+                    setBody(gson.toJson(request))
+                }.bodyAsText()
+                ktorRuntime.persistQueryResult(metadata, body.encodeToByteArray())
+                val result = gson.fromJson(body, Post::class.java)
+                updateStatus("[Ktor network] POST query returned post id=${result.id}.")
+            }.onFailure {
+                updateStatus("Ktor search failed: ${it.message}")
+            }
+        }
+    }
+
+    private fun refreshPostsKtor() {
+        lifecycleScope.launch {
+            runCatching {
+                val body = ktorClient.get("https://jsonplaceholder.typicode.com/posts/1") {
+                    parameter("userId", 1)
+                }.bodyAsText()
+                ktorRuntime.invalidate(
+                    RetrostashKtorMetadata(
+                        scopeName = "ExampleApi",
+                        bindings = mapOf("userId" to "1"),
+                        invalidateTemplates = listOf(
+                            "posts?userId=1",
+                            "posts/search?userId=1",
+                        ),
+                    )
+                )
+                val result = gson.fromJson(body, Post::class.java)
+                updateStatus("[Ktor] GET mutation returned post id=${result.id} and marked keys dirty.")
+            }.onFailure {
+                updateStatus("Ktor refresh failed: ${it.message}")
+            }
+        }
     }
 
     private fun updateStatus(message: String) {
@@ -174,8 +343,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun renderStatus() {
+        val transport = transportLabel()
         val recentEvents = synchronized(eventLog) { eventLog.toList() }
+        switchTransportButton.text = transport
         statusText.text = buildString {
+            append(transport)
+            append("\n\n")
             append(currentStatus)
             if (recentEvents.isNotEmpty()) {
                 append("\n\nRecent events:\n")
@@ -186,6 +359,16 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }.trimEnd()
+    }
+
+    private fun transportLabel(): String = when (transportState.mode) {
+        TransportMode.OKHTTP -> getString(R.string.transport_okhttp)
+        TransportMode.KTOR -> getString(R.string.transport_ktor)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        runCatching { ktorClient.close() }
     }
 
     interface ExampleApi {

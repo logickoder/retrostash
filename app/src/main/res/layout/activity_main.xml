@@ -14,9 +14,16 @@
         android:textAppearance="?attr/textAppearanceHeadline6" />
 
     <Button
+        android:id="@+id/switchTransportButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/switch_transport" />
+
+    <Button
         android:id="@+id/loadPostsButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
         android:text="@string/load_posts" />
 
     <Button
