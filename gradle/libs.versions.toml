@@ -7,6 +7,8 @@ gson = "2.10.1"
 junit = "4.13.2"
 runner = "1.6.2"
 espresso = "3.6.1"
+coroutines = "1.10.2"
+ktor = "3.4.2"
 
 [libraries]
 # AndroidX dependencies
@@ -18,6 +20,8 @@ retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = 
 retrofit-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
+ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
 # Testing dependencies
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 runner = { group = "androidx.test", name = "runner", version.ref = "runner" }
@@ -27,4 +31,6 @@ espresso-core = { group = "androidx.test.espresso", name = "espresso-core", vers
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 

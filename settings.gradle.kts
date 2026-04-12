@@ -25,3 +25,7 @@ dependencyResolutionManagement {
 rootProject.name = "retrostash"
 include(":app")
 include(":retrostash")
+include(":retrostash-annotations")
+include(":retrostash-core")
+include(":retrostash-okhttp")
+include(":retrostash-ktor")
