@@ -8,6 +8,7 @@ data class RetrostashKtorMetadata(
     val queryTemplate: String? = null,
     val maxAgeMs: Long = 0L,
     val bindings: Map<String, String> = emptyMap(),
+    val bodyBytes: ByteArray? = null,
     val invalidateTemplates: List<String> = emptyList(),
 )
 
