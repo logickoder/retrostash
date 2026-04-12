@@ -38,5 +38,6 @@ dependencies {
     api(project(":retrostash-core"))
     api(project(":retrostash-annotations"))
     implementation(libs.okhttp)
+    implementation(libs.coroutines.core)
     testImplementation(libs.junit)
 }
