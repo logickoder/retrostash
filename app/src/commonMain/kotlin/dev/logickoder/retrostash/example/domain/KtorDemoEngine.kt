@@ -1,6 +1,10 @@
-package dev.logickoder.retrostash.example
+package dev.logickoder.retrostash.example.domain
 
 import dev.logickoder.retrostash.core.RetrostashStore
+import dev.logickoder.retrostash.example.DemoEngine
+import dev.logickoder.retrostash.example.createPlatformKtorEngine
+import dev.logickoder.retrostash.example.model.DemoResult
+import dev.logickoder.retrostash.example.nowMs
 import dev.logickoder.retrostash.ktor.RetrostashCachedPayloadKey
 import dev.logickoder.retrostash.ktor.RetrostashPlugin
 import dev.logickoder.retrostash.ktor.retrostashMutate

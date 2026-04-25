@@ -1,11 +1,19 @@
 package dev.logickoder.retrostash.example
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import dev.logickoder.retrostash.core.InMemoryRetrostashStore
 import dev.logickoder.retrostash.core.RetrostashStore
+import dev.logickoder.retrostash.example.domain.DemoEvent
+import dev.logickoder.retrostash.example.domain.KtorDemoEngine
+import dev.logickoder.retrostash.example.domain.Transport
+import dev.logickoder.retrostash.example.model.DemoResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -22,15 +30,13 @@ class DemoState(private val scope: CoroutineScope) {
     var busy by mutableStateOf(false)
         private set
 
-    private val ktorEngine: DemoEngine =
-        KtorDemoEngine(store = ktorStore, onLog = ::logFromEngine)
+    private val ktorEngine: DemoEngine = KtorDemoEngine(store = ktorStore, onLog = ::logFromEngine)
 
-    private val okhttpEngine: DemoEngine? =
-        if (isOkHttpSupported) {
-            createOkHttpDemoEngine(store = okhttpStore, onLog = ::logFromEngine)
-        } else {
-            null
-        }
+    private val okhttpEngine: DemoEngine? = if (isOkHttpSupported) {
+        createOkHttpDemoEngine(store = okhttpStore, onLog = ::logFromEngine)
+    } else {
+        null
+    }
 
     private fun logFromEngine(message: String) {
         appendEvent(message)
@@ -43,7 +49,7 @@ class DemoState(private val scope: CoroutineScope) {
 
     fun availableTransports(): List<Transport> = buildList {
         add(Transport.Ktor)
-        if (isOkHttpSupported && okhttpEngine != null) add(Transport.OkHttp)
+        if (okhttpEngine != null) add(Transport.OkHttp)
     }
 
     fun runQuery() {
@@ -113,4 +119,16 @@ class DemoState(private val scope: CoroutineScope) {
         ktorEngine.close()
         okhttpEngine?.close()
     }
+}
+
+@Composable
+fun rememberDemoState(): DemoState {
+    val scope = rememberCoroutineScope()
+    val state = remember { DemoState(scope) }
+
+    DisposableEffect(state) {
+        onDispose { state.shutdown() }
+    }
+
+    return state
 }

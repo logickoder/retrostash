@@ -1,7 +1,6 @@
 package dev.logickoder.retrostash.example
 
 import dev.logickoder.retrostash.core.RetrostashStore
-import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngineFactory
 
 expect val platformName: String

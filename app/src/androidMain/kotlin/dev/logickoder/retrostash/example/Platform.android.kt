@@ -1,6 +1,7 @@
 package dev.logickoder.retrostash.example
 
 import dev.logickoder.retrostash.core.RetrostashStore
+import dev.logickoder.retrostash.example.domain.OkHttpDemoEngine
 import dev.logickoder.retrostash.okhttp.RetrostashOkHttpBridge
 import dev.logickoder.retrostash.okhttp.RetrostashOkHttpConfig
 import io.ktor.client.engine.HttpClientEngineFactory

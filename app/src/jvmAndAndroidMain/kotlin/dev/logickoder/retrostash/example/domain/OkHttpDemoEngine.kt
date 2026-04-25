@@ -1,5 +1,9 @@
-package dev.logickoder.retrostash.example
+package dev.logickoder.retrostash.example.domain
 
+import dev.logickoder.retrostash.example.DemoEngine
+import dev.logickoder.retrostash.example.domain.Transport
+import dev.logickoder.retrostash.example.model.DemoResult
+import dev.logickoder.retrostash.example.nowMs
 import dev.logickoder.retrostash.okhttp.OkHttpRetrostashMetadata
 import dev.logickoder.retrostash.okhttp.RetrostashOkHttpBridge
 import dev.logickoder.retrostash.okhttp.retrostash
@@ -81,9 +85,7 @@ class OkHttpDemoEngine(
 
     override suspend fun clearCache() {
         val bridge = RetrostashOkHttpBridge.from(client)
-        if (bridge != null) {
-            bridge.invalidateQueryKey("posts/{id}")
-        }
+        bridge?.invalidateQueryKey("posts/{id}")
         onLog("OkHttp store cleared")
     }
 
