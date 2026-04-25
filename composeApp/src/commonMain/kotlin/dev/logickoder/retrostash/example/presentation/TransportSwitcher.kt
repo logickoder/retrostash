@@ -17,9 +17,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.logickoder.retrostash.example.DemoState
+import dev.logickoder.retrostash.example.Platform
 import dev.logickoder.retrostash.example.domain.Transport
-import dev.logickoder.retrostash.example.platformName
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,10 +60,11 @@ fun TransportSwitcher(
                             }
                         }
                     )
-                    if (Transport.OkHttp !in availableTransports) {
+                    val missing = Transport.entries.filter { it !in availableTransports }
+                    if (missing.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "OkHttp adapter unavailable on ${platformName}.",
+                            "${missing.joinToString(", ") { it.label }} unavailable on ${Platform.name}.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

@@ -62,7 +62,7 @@ fun App() = RetrostashTheme {
                     Column {
                         Text("Retrostash Playground", fontWeight = FontWeight.SemiBold)
                         Text(
-                            "Annotation-driven cache · $platformName",
+                            "Annotation-driven cache · ${Platform.name}",
                             style = MaterialTheme.typography.labelSmall,
                         )
                     }

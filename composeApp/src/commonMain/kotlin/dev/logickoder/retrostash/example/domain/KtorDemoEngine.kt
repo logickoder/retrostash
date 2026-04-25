@@ -2,9 +2,8 @@ package dev.logickoder.retrostash.example.domain
 
 import dev.logickoder.retrostash.core.RetrostashStore
 import dev.logickoder.retrostash.example.DemoEngine
-import dev.logickoder.retrostash.example.createPlatformKtorEngine
+import dev.logickoder.retrostash.example.Platform
 import dev.logickoder.retrostash.example.model.DemoResult
-import dev.logickoder.retrostash.example.nowMs
 import dev.logickoder.retrostash.ktor.RetrostashCachedPayloadKey
 import dev.logickoder.retrostash.ktor.RetrostashPlugin
 import dev.logickoder.retrostash.ktor.retrostashMutate
@@ -26,7 +25,7 @@ class KtorDemoEngine(
 ) : DemoEngine {
     override val transport: Transport = Transport.Ktor
 
-    private val client: HttpClient = HttpClient(createPlatformKtorEngine()) {
+    private val client: HttpClient = HttpClient(Platform.ktorEngine) {
         install(RetrostashPlugin) {
             this.store = this@KtorDemoEngine.store
             this.timeoutMs = 1_000L
@@ -35,7 +34,7 @@ class KtorDemoEngine(
     }
 
     override suspend fun runQuery(postId: Int): DemoResult {
-        val started = nowMs()
+        val started = Platform.nowMs()
         val response: HttpResponse = client.get("$BASE_URL/posts/$postId") {
             retrostashQuery(
                 scopeName = "PostsApi",
@@ -53,12 +52,12 @@ class KtorDemoEngine(
             statusCode = response.status.value,
             source = source,
             sizeBytes = bytes.size,
-            durationMs = nowMs() - started,
+            durationMs = Platform.nowMs() - started,
         )
     }
 
     override suspend fun runMutation(postId: Int): DemoResult {
-        val started = nowMs()
+        val started = Platform.nowMs()
         val response: HttpResponse = client.put("$BASE_URL/posts/$postId") {
             contentType(ContentType.Application.Json)
             setBody("""{"id":$postId,"title":"updated"}""")
@@ -75,7 +74,7 @@ class KtorDemoEngine(
             statusCode = response.status.value,
             source = "network",
             sizeBytes = bytes.size,
-            durationMs = nowMs() - started,
+            durationMs = Platform.nowMs() - started,
         )
     }
 

@@ -1,9 +1,8 @@
 package dev.logickoder.retrostash.example.domain
 
 import dev.logickoder.retrostash.example.DemoEngine
-import dev.logickoder.retrostash.example.domain.Transport
+import dev.logickoder.retrostash.example.Platform
 import dev.logickoder.retrostash.example.model.DemoResult
-import dev.logickoder.retrostash.example.nowMs
 import dev.logickoder.retrostash.okhttp.OkHttpRetrostashMetadata
 import dev.logickoder.retrostash.okhttp.RetrostashOkHttpBridge
 import dev.logickoder.retrostash.okhttp.retrostash
@@ -24,7 +23,7 @@ class OkHttpDemoEngine(
     override val transport: Transport = Transport.OkHttp
 
     override suspend fun runQuery(postId: Int): DemoResult = withContext(Dispatchers.Default) {
-        val started = nowMs()
+        val started = Platform.nowMs()
         val request = Request.Builder()
             .url("$BASE_URL/posts/$postId")
             .get()
@@ -47,13 +46,13 @@ class OkHttpDemoEngine(
                 statusCode = response.code,
                 source = source,
                 sizeBytes = bytes.size,
-                durationMs = nowMs() - started,
+                durationMs = Platform.nowMs() - started,
             )
         }
     }
 
     override suspend fun runMutation(postId: Int): DemoResult = withContext(Dispatchers.Default) {
-        val started = nowMs()
+        val started = Platform.nowMs()
         val request = Request.Builder()
             .url("$BASE_URL/posts/$postId")
             .put(
@@ -78,7 +77,7 @@ class OkHttpDemoEngine(
                 statusCode = response.code,
                 source = source,
                 sizeBytes = bytes.size,
-                durationMs = nowMs() - started,
+                durationMs = Platform.nowMs() - started,
             )
         }
     }

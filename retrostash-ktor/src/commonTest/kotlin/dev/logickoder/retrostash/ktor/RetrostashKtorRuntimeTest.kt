@@ -44,4 +44,26 @@ class RetrostashKtorRuntimeTest {
         val cached = runtime.resolveFromCache(queryMetadata)
         assertNull(cached)
     }
+
+    @Test
+    fun invalidate_resolves_placeholder_templates_against_bindings() = runTest {
+        val runtime = RetrostashKtorRuntime.create(InMemoryRetrostashStore())
+        val queryMetadata = RetrostashKtorMetadata(
+            scopeName = "FeedApi",
+            queryTemplate = "feed/{id}",
+            bindings = mapOf("id" to "7"),
+            maxAgeMs = 60_000L,
+        )
+        runtime.persistQueryResult(queryMetadata, "payload".encodeToByteArray())
+
+        val mutateMetadata = RetrostashKtorMetadata(
+            scopeName = "FeedApi",
+            invalidateTemplates = listOf("feed/{id}"),
+            bindings = mapOf("id" to "7"),
+        )
+        runtime.invalidate(mutateMetadata)
+
+        val cached = runtime.resolveFromCache(queryMetadata)
+        assertNull(cached)
+    }
 }

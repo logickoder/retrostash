@@ -18,9 +18,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 class DemoState(private val scope: CoroutineScope) {
-
     private val ktorStore: RetrostashStore = InMemoryRetrostashStore()
     private val okhttpStore: RetrostashStore = InMemoryRetrostashStore()
+    private val retrofitStore: RetrostashStore = InMemoryRetrostashStore()
 
     val events = mutableStateListOf<DemoEvent>()
     var lastResult by mutableStateOf<DemoResult?>(null)
@@ -30,13 +30,16 @@ class DemoState(private val scope: CoroutineScope) {
     var busy by mutableStateOf(false)
         private set
 
-    private val ktorEngine: DemoEngine = KtorDemoEngine(store = ktorStore, onLog = ::logFromEngine)
+    private val ktorEngine: DemoEngine = KtorDemoEngine(
+        store = ktorStore,
+        onLog = ::logFromEngine,
+    )
 
-    private val okhttpEngine: DemoEngine? = if (isOkHttpSupported) {
-        createOkHttpDemoEngine(store = okhttpStore, onLog = ::logFromEngine)
-    } else {
-        null
-    }
+    private val okhttpEngine =
+        Platform.createOkHttpEngine(store = okhttpStore, onLog = ::logFromEngine)
+
+    private val retrofitEngine =
+        Platform.createRetrofitEngine(store = retrofitStore, onLog = ::logFromEngine)
 
     private fun logFromEngine(message: String) {
         appendEvent(message)
@@ -45,11 +48,13 @@ class DemoState(private val scope: CoroutineScope) {
     private fun engine(): DemoEngine = when (transport) {
         Transport.Ktor -> ktorEngine
         Transport.OkHttp -> okhttpEngine ?: ktorEngine
+        Transport.Retrofit -> retrofitEngine ?: ktorEngine
     }
 
     fun availableTransports(): List<Transport> = buildList {
         add(Transport.Ktor)
         if (okhttpEngine != null) add(Transport.OkHttp)
+        if (retrofitEngine != null) add(Transport.Retrofit)
     }
 
     fun runQuery() {
@@ -109,7 +114,10 @@ class DemoState(private val scope: CoroutineScope) {
     }
 
     private fun appendEvent(message: String, isError: Boolean = false) {
-        events.add(0, DemoEvent(timestampMs = nowMs(), message = message, isError = isError))
+        events.add(
+            0,
+            DemoEvent(timestampMs = Platform.nowMs(), message = message, isError = isError)
+        )
         Logger.d("DemoEngine", message)
         if (events.size > 100) {
             while (events.size > 100) events.removeAt(events.lastIndex)
@@ -119,6 +127,7 @@ class DemoState(private val scope: CoroutineScope) {
     fun shutdown() {
         ktorEngine.close()
         okhttpEngine?.close()
+        retrofitEngine?.close()
     }
 }
 
