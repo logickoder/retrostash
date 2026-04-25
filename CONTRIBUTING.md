@@ -10,16 +10,16 @@
 
 ## Project Layout
 
-| Module                   | Targets                                             | Purpose                                                                              |
-|--------------------------|-----------------------------------------------------|--------------------------------------------------------------------------------------|
-| `retrostash-core`        | android, jvm, ios{X64,Arm64,SimulatorArm64}, wasmJs | Engine, key resolver, in-memory store                                                |
-| `retrostash-annotations` | android, jvm, ios*, wasmJs                          | `@CacheQuery`, `@CacheMutate`                                                        |
-| `retrostash-ktor`        | android, jvm, ios*, wasmJs                          | Ktor `HttpClient` plugin + iOS XCFramework export                                    |
-| `retrostash-okhttp`      | android, jvm                                        | OkHttp interceptor + Retrofit metadata                                               |
-| `retrostash`             | android                                             | Legacy wrapper module — used as integration smoke-test                               |
-| `app`                    | jvm desktop, android library, ios*, wasmJs          | KMP shared module: Compose Multiplatform UI + per-platform actuals                   |
-| `androidApp`             | android.application                                 | Android entry point (Activity) — depends on `:app`                                   |
-| `iosApp/`                | Xcode project (not Gradle)                          | iOS dev shell hosting `App()` from `:app` (see [iosApp/README.md](iosApp/README.md)) |
+| Module                   | Targets                                             | Purpose                                                                                     |
+|--------------------------|-----------------------------------------------------|---------------------------------------------------------------------------------------------|
+| `retrostash-core`        | android, jvm, ios{X64,Arm64,SimulatorArm64}, wasmJs | Engine, key resolver, in-memory store                                                       |
+| `retrostash-annotations` | android, jvm, ios*, wasmJs                          | `@CacheQuery`, `@CacheMutate`                                                               |
+| `retrostash-ktor`        | android, jvm, ios*, wasmJs                          | Ktor `HttpClient` plugin + iOS XCFramework export                                           |
+| `retrostash-okhttp`      | android, jvm                                        | OkHttp interceptor + Retrofit metadata                                                      |
+| `retrostash`             | android                                             | Legacy wrapper module — used as integration smoke-test                                      |
+| `app`                    | jvm desktop, android library, ios*, wasmJs          | KMP shared module: Compose Multiplatform UI + per-platform actuals                          |
+| `androidApp`             | android.application                                 | Android entry point (Activity) — depends on `:composeApp`                                   |
+| `iosApp/`                | Xcode project (not Gradle)                          | iOS dev shell hosting `App()` from `:composeApp` (see [iosApp/README.md](iosApp/README.md)) |
 
 ## Local Checks
 
@@ -32,7 +32,7 @@ everything-pass:
   :retrostash-okhttp:jvmTest \
   :retrostash-ktor:jvmTest :retrostash-ktor:iosSimulatorArm64Test \
   :retrostash-annotations:assemble \
-  :app:assembleDebug
+  :composeApp:assembleDebug
 ```
 
 Run the playground:
@@ -42,12 +42,12 @@ Run the playground:
 ./gradlew :androidApp:installDebug
 
 # Desktop (JVM)
-./gradlew :app:run
+./gradlew :composeApp:run
 
 # iOS — see iosApp/README.md for one-time Xcode project setup, then ⌘R in Xcode
 
 # Web (wasmJs)
-./gradlew :app:wasmJsBrowserDevelopmentRun
+./gradlew :composeApp:wasmJsBrowserDevelopmentRun
 ```
 
 ## Local Publishing (Maven Local)
@@ -167,6 +167,6 @@ Before requesting review, confirm:
 6. I did not bundle unrelated refactors with this change.
 7. If touching iOS / wasmJs surface, I verified
    `:retrostash-ktor:assembleRetrostashDebugXCFramework` and
-   `:app:wasmJsBrowserDevelopmentExecutableDistribution` succeed.
+   `:composeApp:wasmJsBrowserDevelopmentExecutableDistribution` succeed.
 
 PRs that fail checklist items are not considered merge-ready.

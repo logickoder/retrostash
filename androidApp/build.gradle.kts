@@ -36,7 +36,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":app"))
+    implementation(project(":composeApp"))
     implementation(libs.activity.compose)
     implementation(libs.coroutines.android)
 }

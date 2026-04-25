@@ -56,7 +56,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "retrostash"
-include(":app")
+include(":composeApp")
 include(":androidApp")
 include(":retrostash")
 include(":retrostash-annotations")
