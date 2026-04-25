@@ -1,23 +1,100 @@
+import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+
 plugins {
+    alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.application)
+    alias(libs.plugins.compose.multiplatform)
+    alias(libs.plugins.compose.compiler)
+}
+
+kotlin {
+    applyDefaultHierarchyTemplate {
+        common {
+            group("jvmAndAndroid") {
+                withAndroidTarget()
+                withJvm()
+            }
+        }
+    }
+
+    jvmToolchain(17)
+
+    androidTarget()
+
+    jvm("desktop")
+
+    listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { target ->
+        target.binaries.framework {
+            baseName = "RetrostashApp"
+            isStatic = true
+        }
+    }
+
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+    wasmJs {
+        browser {
+            commonWebpackConfig {
+                outputFileName = "retrostash-app.js"
+            }
+        }
+        binaries.executable()
+    }
+
+    sourceSets {
+        commonMain.dependencies {
+            implementation(compose.runtime)
+            implementation(compose.foundation)
+            implementation(compose.material3)
+            implementation(compose.materialIconsExtended)
+            implementation(compose.ui)
+            implementation(compose.components.resources)
+            implementation(libs.coroutines.core)
+            implementation(libs.ktor.client.core)
+            implementation(project(":retrostash-core"))
+            implementation(project(":retrostash-annotations"))
+            implementation(project(":retrostash-ktor"))
+        }
+
+        val jvmAndAndroidMain by getting {
+            dependencies {
+                implementation(libs.okhttp)
+                implementation(project(":retrostash-okhttp"))
+            }
+        }
+
+        androidMain.dependencies {
+            implementation(libs.activity.compose)
+            implementation(libs.coroutines.android)
+            implementation(libs.ktor.client.okhttp)
+        }
+
+        val desktopMain by getting {
+            dependencies {
+                implementation(compose.desktop.currentOs)
+                implementation(libs.ktor.client.cio)
+            }
+        }
+
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+        }
+
+        wasmJsMain.dependencies {
+            implementation(libs.ktor.client.js)
+        }
+    }
 }
 
 android {
     namespace = "dev.logickoder.retrostash.example"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "dev.logickoder.retrostash.example"
-        minSdk = 23
+        minSdk = 24
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -35,21 +112,13 @@ android {
     }
 }
 
-dependencies {
-    implementation(libs.core)
-    implementation(libs.core.appcompat)
-    implementation(libs.core.material)
-    implementation(project(":retrostash-annotations"))
-    implementation(project(":retrostash-okhttp"))
-    implementation(project(":retrostash-ktor"))
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.gson)
-    implementation(libs.okhttp)
-    implementation(libs.ktor.client.core)
-    implementation(libs.ktor.client.okhttp)
-    implementation(libs.coroutines.android)
-    implementation(libs.lifecycle.runtime.ktx)
-    implementation(libs.gson)
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.espresso.core)
+compose.desktop {
+    application {
+        mainClass = "dev.logickoder.retrostash.example.MainKt"
+        nativeDistributions {
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            packageName = "Retrostash Playground"
+            packageVersion = "1.0.0"
+        }
+    }
 }

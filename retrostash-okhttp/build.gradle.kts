@@ -1,44 +1,34 @@
 plugins {
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.android.kmp.library)
+    alias(libs.plugins.vanniktech.publish)
 }
 
 group = providers.gradleProperty("POM_GROUP_ID").orElse("dev.logickoder").get()
 version = providers.gradleProperty("POM_VERSION").orElse("0.1.0-SNAPSHOT").get()
 
-android {
-    namespace = "dev.logickoder.retrostash.okhttp"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
-
-    defaultConfig {
+kotlin {
+    jvmToolchain(17)
+    jvm()
+    android {
+        namespace = "dev.logickoder.retrostash.okhttp"
+        compileSdk = 36
         minSdk = 21
-        consumerProguardFiles("consumer-rules.pro")
     }
 
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+    sourceSets {
+        commonMain.dependencies {
+            api(project(":retrostash-core"))
+            api(project(":retrostash-annotations"))
+            implementation(libs.coroutines.core)
+            api(libs.okhttp)
+            implementation(libs.retrofit)
+        }
+
+        jvmTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.junit)
+            implementation(libs.coroutines.test)
         }
     }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-}
-
-dependencies {
-    api(project(":retrostash-core"))
-    api(project(":retrostash-annotations"))
-    implementation(libs.okhttp)
-    implementation(libs.retrofit)
-    implementation(libs.coroutines.core)
-    testImplementation(libs.junit)
 }

@@ -14,7 +14,7 @@ This file is the source of truth for day-to-day engineering standards in this re
 ## 2. Test Policy by Change Type
 
 1. Core engine logic (`retrostash-core`): add/update unit tests in `commonTest`.
-2. OkHttp adapter logic (`retrostash-okhttp`): add/update JVM unit tests in `src/test`.
+2. OkHttp adapter logic (`retrostash-okhttp`): add/update JVM unit tests in `src/jvmTest`.
 3. Ktor plugin behavior (`retrostash-ktor`): add/update KMP/JVM tests for plugin metadata and
    interception behavior.
 4. Annotation/metadata parsing changes: add parser/extractor tests for old and new annotation
@@ -36,9 +36,9 @@ A change is done only when all are true:
 
 Run the minimum impacted checks plus the baseline suite:
 
-1. `./gradlew :retrostash-core:jvmTest`
-2. `./gradlew :retrostash-okhttp:assembleDebug :retrostash-okhttp:testDebugUnitTest`
-3. `./gradlew :retrostash-ktor:assemble`
+1. `./gradlew :retrostash-core:jvmTest :retrostash-core:iosSimulatorArm64Test`
+2. `./gradlew :retrostash-okhttp:jvmTest :retrostash-okhttp:assemble`
+3. `./gradlew :retrostash-ktor:jvmTest :retrostash-ktor:iosSimulatorArm64Test`
 4. `./gradlew :retrostash-annotations:assemble`
 
 If a change is module-specific, run its focused tests first, then run affected integration modules.

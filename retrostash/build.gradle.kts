@@ -1,5 +1,3 @@
-import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
-
 plugins {
     alias(libs.plugins.android.library)
     id("maven-publish")
@@ -10,11 +8,7 @@ version = providers.gradleProperty("POM_VERSION").orElse("0.1.0-SNAPSHOT").get()
 
 android {
     namespace = "dev.logickoder.retrostash"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 21
@@ -41,13 +35,6 @@ android {
         singleVariant("release") {
             withSourcesJar()
         }
-    }
-}
-
-kotlin {
-    compilerOptions {
-        languageVersion.set(KotlinVersion.KOTLIN_1_8)
-        apiVersion.set(KotlinVersion.KOTLIN_1_8)
     }
 }
 
