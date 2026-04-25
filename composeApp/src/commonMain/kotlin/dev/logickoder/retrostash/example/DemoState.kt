@@ -39,7 +39,6 @@ class DemoState(private val scope: CoroutineScope) {
     }
 
     private fun logFromEngine(message: String) {
-        Logger.d("DemoEngine", message)
         appendEvent(message)
     }
 
@@ -77,7 +76,7 @@ class DemoState(private val scope: CoroutineScope) {
         scope.launch {
             busy = true
             try {
-                appendEvent("→ ${transport.label}: POST /posts/$postId (mutate)")
+                appendEvent("→ ${transport.label}: PUT /posts/$postId (mutate)")
                 val result = engine().runMutation(postId)
                 lastResult = result
                 appendEvent(
@@ -111,6 +110,7 @@ class DemoState(private val scope: CoroutineScope) {
 
     private fun appendEvent(message: String, isError: Boolean = false) {
         events.add(0, DemoEvent(timestampMs = nowMs(), message = message, isError = isError))
+        Logger.d("DemoEngine", message)
         if (events.size > 100) {
             while (events.size > 100) events.removeAt(events.lastIndex)
         }

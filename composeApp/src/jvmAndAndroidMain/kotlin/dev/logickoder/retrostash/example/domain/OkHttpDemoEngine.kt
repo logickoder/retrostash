@@ -56,7 +56,7 @@ class OkHttpDemoEngine(
         val started = nowMs()
         val request = Request.Builder()
             .url("$BASE_URL/posts/$postId")
-            .post(
+            .put(
                 """{"id":$postId,"title":"updated"}"""
                     .toRequestBody("application/json".toMediaType())
             )
@@ -74,7 +74,7 @@ class OkHttpDemoEngine(
             val source = response.header(SOURCE_HEADER) ?: "network"
             DemoResult(
                 transport = transport,
-                operation = "POST /posts/$postId",
+                operation = "PUT /posts/$postId",
                 statusCode = response.code,
                 source = source,
                 sizeBytes = bytes.size,

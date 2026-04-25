@@ -11,7 +11,7 @@ import dev.logickoder.retrostash.ktor.retrostashMutate
 import dev.logickoder.retrostash.ktor.retrostashQuery
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
-import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsBytes
@@ -59,7 +59,7 @@ class KtorDemoEngine(
 
     override suspend fun runMutation(postId: Int): DemoResult {
         val started = nowMs()
-        val response: HttpResponse = client.post("$BASE_URL/posts/$postId") {
+        val response: HttpResponse = client.put("$BASE_URL/posts/$postId") {
             contentType(ContentType.Application.Json)
             setBody("""{"id":$postId,"title":"updated"}""")
             retrostashMutate(
@@ -71,7 +71,7 @@ class KtorDemoEngine(
         val bytes = response.bodyAsBytes()
         return DemoResult(
             transport = transport,
-            operation = "POST /posts/$postId",
+            operation = "PUT /posts/$postId",
             statusCode = response.status.value,
             source = "network",
             sizeBytes = bytes.size,
