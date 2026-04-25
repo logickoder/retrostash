@@ -10,14 +10,16 @@
 
 ## Project Layout
 
-| Module                   | Targets                                             | Purpose                                                  |
-|--------------------------|-----------------------------------------------------|----------------------------------------------------------|
-| `retrostash-core`        | android, jvm, ios{X64,Arm64,SimulatorArm64}, wasmJs | Engine, key resolver, in-memory store                    |
-| `retrostash-annotations` | android, jvm, ios*, wasmJs                          | `@CacheQuery`, `@CacheMutate`                            |
-| `retrostash-ktor`        | android, jvm, ios*, wasmJs                          | Ktor `HttpClient` plugin + iOS XCFramework export        |
-| `retrostash-okhttp`      | android, jvm                                        | OkHttp interceptor + Retrofit metadata                   |
-| `retrostash`             | android                                             | Legacy wrapper module — used as integration smoke-test   |
-| `app`                    | android, jvm desktop, ios*, wasmJs                  | Compose Multiplatform playground demoing both transports |
+| Module                   | Targets                                             | Purpose                                                                              |
+|--------------------------|-----------------------------------------------------|--------------------------------------------------------------------------------------|
+| `retrostash-core`        | android, jvm, ios{X64,Arm64,SimulatorArm64}, wasmJs | Engine, key resolver, in-memory store                                                |
+| `retrostash-annotations` | android, jvm, ios*, wasmJs                          | `@CacheQuery`, `@CacheMutate`                                                        |
+| `retrostash-ktor`        | android, jvm, ios*, wasmJs                          | Ktor `HttpClient` plugin + iOS XCFramework export                                    |
+| `retrostash-okhttp`      | android, jvm                                        | OkHttp interceptor + Retrofit metadata                                               |
+| `retrostash`             | android                                             | Legacy wrapper module — used as integration smoke-test                               |
+| `app`                    | jvm desktop, android library, ios*, wasmJs          | KMP shared module: Compose Multiplatform UI + per-platform actuals                   |
+| `androidApp`             | android.application                                 | Android entry point (Activity) — depends on `:app`                                   |
+| `iosApp/`                | Xcode project (not Gradle)                          | iOS dev shell hosting `App()` from `:app` (see [iosApp/README.md](iosApp/README.md)) |
 
 ## Local Checks
 
@@ -37,13 +39,12 @@ Run the playground:
 
 ```bash
 # Android
-./gradlew :app:installDebug
+./gradlew :androidApp:installDebug
 
 # Desktop (JVM)
 ./gradlew :app:run
 
-# iOS — open Xcode, point at retrostash-ktor/build/XCFrameworks/release/Retrostash.xcframework
-./gradlew :retrostash-ktor:assembleRetrostashReleaseXCFramework
+# iOS — see iosApp/README.md for one-time Xcode project setup, then ⌘R in Xcode
 
 # Web (wasmJs)
 ./gradlew :app:wasmJsBrowserDevelopmentRun

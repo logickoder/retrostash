@@ -32,6 +32,17 @@ dependencyResolutionManagement {
         }
         exclusiveContent {
             forRepository {
+                ivy("https://github.com/WebAssembly/binaryen/releases/download/") {
+                    name = "Binaryen Distributions"
+                    patternLayout { artifact("version_[revision]/[artifact]-version_[revision]-[classifier].[ext]") }
+                    metadataSources { artifact() }
+                    content { includeModule("com.github.webassembly", "binaryen") }
+                }
+            }
+            filter { includeGroup("com.github.webassembly") }
+        }
+        exclusiveContent {
+            forRepository {
                 ivy("https://github.com/yarnpkg/yarn/releases/download") {
                     name = "Yarn Distributions"
                     patternLayout { artifact("v[revision]/[artifact](-v[revision]).[ext]") }
@@ -46,6 +57,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "retrostash"
 include(":app")
+include(":androidApp")
 include(":retrostash")
 include(":retrostash-annotations")
 include(":retrostash-core")
