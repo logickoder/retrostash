@@ -7,6 +7,19 @@ library targeting Android, JVM, and iOS.
 
 [![GitHub Release](https://img.shields.io/github/v/release/logickoder/retrostash?label=release)](https://github.com/logickoder/retrostash/releases)
 
+| Android                                                                                       | iOS                                                                                   |
+|-----------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
+| <img src="docs/screenshots/playground-android.webp" alt="Playground — Android" width="320" /> | <img src="docs/screenshots/playground-ios.webp" alt="Playground — iOS" width="320" /> |
+| **Desktop**                                                                                   | **Web (wasmJs)**                                                                      |
+| <img src="docs/screenshots/playground-desktop.webp" alt="Playground — Desktop" width="320" /> | <img src="docs/screenshots/playground-web.webp" alt="Playground — Web" width="320" /> |
+
+> Sample app `:composeApp` runs on Android, JVM desktop, iOS, and wasmJs (browser). Switch between
+> Ktor, OkHttp, and Retrofit transports via the segmented tab.
+>
+> 🌐 **[Live web demo](https://logickoder.github.io/retrostash/)** ·
+> 📦 [Android APK + Web bundle](https://github.com/logickoder/retrostash/releases) attached to each
+> release.
+
 ### Key Features
 - **Persisted POST query caching:** Safely cache complex payloads like searches and GraphQL.
 - **Mutation-driven cache invalidation:** Automatically clear stale data when a user updates a resource.
