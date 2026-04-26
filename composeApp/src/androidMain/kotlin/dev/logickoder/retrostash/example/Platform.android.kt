@@ -11,12 +11,12 @@ import io.ktor.client.engine.okhttp.OkHttp
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 
-actual object Platform : IPlatform {
-    override val name: String = "Android"
+actual object Platform {
+    actual val name: String = "Android"
 
-    override val ktorEngine: HttpClientEngineFactory<*> = OkHttp
+    actual val ktorEngine: HttpClientEngineFactory<*> = OkHttp
 
-    override fun createOkHttpEngine(
+    actual fun createOkHttpEngine(
         store: RetrostashStore,
         onLog: (String) -> Unit,
     ): DemoEngine? {
@@ -28,7 +28,7 @@ actual object Platform : IPlatform {
         return OkHttpDemoEngine(client = client, onLog = onLog)
     }
 
-    override fun createRetrofitEngine(
+    actual fun createRetrofitEngine(
         store: RetrostashStore,
         onLog: (String) -> Unit,
     ): DemoEngine? {
@@ -45,4 +45,3 @@ actual object Platform : IPlatform {
         return RetrofitDemoEngine(api = api, client = client, onLog = onLog)
     }
 }
-

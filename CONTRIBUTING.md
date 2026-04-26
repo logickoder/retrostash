@@ -16,8 +16,7 @@
 | `retrostash-annotations` | android, jvm, ios*, wasmJs                          | `@CacheQuery`, `@CacheMutate`                                                               |
 | `retrostash-ktor`        | android, jvm, ios*, wasmJs                          | Ktor `HttpClient` plugin + iOS XCFramework export                                           |
 | `retrostash-okhttp`      | android, jvm                                        | OkHttp interceptor + Retrofit metadata                                                      |
-| `retrostash`             | android                                             | Legacy wrapper module — used as integration smoke-test                                      |
-| `app`                    | jvm desktop, android library, ios*, wasmJs          | KMP shared module: Compose Multiplatform UI + per-platform actuals                          |
+| `composeApp`             | jvm desktop, android library, ios*, wasmJs          | KMP shared module: Compose Multiplatform UI + per-platform actuals                          |
 | `androidApp`             | android.application                                 | Android entry point (Activity) — depends on `:composeApp`                                   |
 | `iosApp/`                | Xcode project (not Gradle)                          | iOS dev shell hosting `App()` from `:composeApp` (see [iosApp/README.md](iosApp/README.md)) |
 
