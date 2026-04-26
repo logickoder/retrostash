@@ -21,7 +21,7 @@ let package = Package(
         .binaryTarget(
             name: "Retrostash",
             url: "https://github.com/logickoder/retrostash/releases/download/\(version)/Retrostash.xcframework.zip",
-            checksum: "REPLACE_WITH_RELEASE_CHECKSUM"
+            checksum: "a41adc7d3be7c03d38afd76ed557be07951258e037a869f9409e1f477b6a368f"
         ),
     ]
 )
