@@ -1,8 +1,14 @@
+import { Apple, Boxes, TerminalSquare } from 'lucide-react';
 import CodeBlock from '../components/CodeBlock';
+import SEO from '../components/SEO';
 
 export default function Install() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-16 sm:py-24">
+      <SEO
+        title="Install"
+        description="Maven Central + Swift Package Manager coordinates for Retrostash 0.0.5+."
+      />
       <div className="scroll-reveal">
         <span className="text-xs font-medium uppercase tracking-wider text-primary">
           Setup
@@ -16,7 +22,7 @@ export default function Install() {
 
       <section className="mt-12 scroll-reveal">
         <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold">
-          <span className="inline-block size-1.5 rounded-full bg-primary" />
+          <Boxes className="size-5 text-primary" aria-hidden />
           Android · JVM · wasmJs
         </h2>
         <div className="space-y-3">
@@ -40,7 +46,7 @@ export default function Install() {
 
       <section className="mt-12 scroll-reveal">
         <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold">
-          <span className="inline-block size-1.5 rounded-full bg-tertiary" />
+          <Apple className="size-5 text-tertiary" aria-hidden />
           iOS · Swift Package Manager
         </h2>
         <p className="mb-3 text-sm text-on-surface-variant">
@@ -63,7 +69,7 @@ let runtime = RetrostashKtorRuntime.companion.create(
 
       <section className="mt-12 scroll-reveal">
         <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold">
-          <span className="inline-block size-1.5 rounded-full bg-secondary" />
+          <TerminalSquare className="size-5 text-secondary" aria-hidden />
           Verify
         </h2>
         <CodeBlock>{`./gradlew dependencies --configuration releaseRuntimeClasspath \\

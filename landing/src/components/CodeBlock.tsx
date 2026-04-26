@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Check, Copy } from 'lucide-react';
 
 interface CodeBlockProps {
   lang?: string;
@@ -18,6 +19,8 @@ export default function CodeBlock({ lang, children }: CodeBlockProps) {
     }
   };
 
+  const Icon = copied ? Check : Copy;
+
   return (
     <div className="group relative overflow-hidden rounded-card border border-outline/30 bg-secondary-container/30 transition-colors hover:border-primary/40">
       {lang ? (
@@ -28,18 +31,21 @@ export default function CodeBlock({ lang, children }: CodeBlockProps) {
           <button
             type="button"
             onClick={onCopy}
-            className="rounded-md px-2 py-1 text-xs font-medium text-on-surface-variant opacity-0 transition-opacity duration-200 hover:bg-surface-variant hover:text-on-surface group-hover:opacity-100 focus:opacity-100"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-on-surface-variant opacity-0 transition-opacity duration-200 hover:bg-surface-variant hover:text-on-surface group-hover:opacity-100 focus:opacity-100"
+            aria-label={copied ? 'Copied' : 'Copy to clipboard'}
           >
-            {copied ? '✓ Copied' : 'Copy'}
+            <Icon className="size-3.5" />
+            {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
       ) : (
         <button
           type="button"
           onClick={onCopy}
-          className="absolute right-2 top-2 z-10 rounded-md bg-surface-variant/80 px-2 py-1 text-xs font-medium text-on-surface-variant opacity-0 backdrop-blur transition-opacity duration-200 hover:text-on-surface group-hover:opacity-100 focus:opacity-100"
+          className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-md bg-surface-variant/80 px-2 py-1 text-xs font-medium text-on-surface-variant opacity-0 backdrop-blur transition-opacity duration-200 hover:text-on-surface group-hover:opacity-100 focus:opacity-100"
+          aria-label={copied ? 'Copied' : 'Copy to clipboard'}
         >
-          {copied ? '✓' : 'Copy'}
+          <Icon className="size-3.5" />
         </button>
       )}
       <pre className="overflow-x-auto p-4">

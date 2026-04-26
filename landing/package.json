@@ -9,8 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "lucide-react": "^1.11.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-helmet-async": "^3.0.0",
     "react-router-dom": "^7.0.0"
   },
   "devDependencies": {

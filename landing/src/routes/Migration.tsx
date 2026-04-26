@@ -1,4 +1,6 @@
+import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import SEO from '../components/SEO';
 
 const rows: Array<{ old: string; current: string }> = [
   { old: 'Retrostash.install(builder, context)', current: 'RetrostashOkHttpAndroid.install(builder, context)' },
@@ -19,6 +21,10 @@ const rows: Array<{ old: string; current: string }> = [
 export default function Migration() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-16 sm:py-24">
+      <SEO
+        title="Migrating from 0.0.4"
+        description="Upgrade path from JitPack 0.0.4 coords to Maven Central per-module 0.0.5 coords."
+      />
       <div className="scroll-reveal">
         <span className="text-xs font-medium uppercase tracking-wider text-primary">
           Upgrade path
@@ -62,8 +68,12 @@ export default function Migration() {
         <p className="text-sm text-on-surface-variant">
           The legacy <code className="rounded bg-surface-variant/40 px-1.5 py-0.5 font-mono text-xs">com.github.logickoder:retrostash</code>{' '}
           coord on JitPack is frozen at 0.0.4. New releases publish per-module to Maven Central.{' '}
-          <Link className="font-medium text-primary hover:underline" to="/install">
-            See Install →
+          <Link
+            className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+            to="/install"
+          >
+            See Install
+            <ArrowRight className="size-3.5" aria-hidden />
           </Link>
         </p>
       </div>

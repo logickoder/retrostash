@@ -1,18 +1,20 @@
+import { ArrowRight } from 'lucide-react';
+
 export default function Hero() {
   return (
     <section className="relative overflow-hidden">
       {/* Animated background orbs */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div
-          className="absolute -top-32 -left-32 size-[480px] rounded-full bg-primary/20 blur-3xl"
+          className="absolute -top-32 -left-32 size-120 rounded-full bg-primary/20 blur-3xl"
           style={{ animation: 'var(--animate-float)' }}
         />
         <div
-          className="absolute top-20 -right-40 size-[520px] rounded-full bg-tertiary/15 blur-3xl"
+          className="absolute top-20 -right-40 size-130 rounded-full bg-tertiary/15 blur-3xl"
           style={{ animation: 'var(--animate-float)', animationDelay: '-7s' }}
         />
         <div
-          className="absolute -bottom-40 left-1/3 size-[420px] rounded-full bg-secondary-container/40 blur-3xl"
+          className="absolute -bottom-40 left-1/3 size-105 rounded-full bg-secondary-container/40 blur-3xl"
           style={{ animation: 'var(--animate-pulse-slow)' }}
         />
       </div>
@@ -71,7 +73,7 @@ export default function Hero() {
               href="/retrostash/playground/"
             >
               Try the live playground
-              <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+              <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-1" />
             </a>
             <a
               className="inline-flex items-center gap-2 rounded-chip border border-outline/50 bg-surface-variant/30 px-5 py-3 text-sm font-semibold text-on-surface backdrop-blur-sm transition-colors hover:border-primary/60 hover:bg-surface-variant"

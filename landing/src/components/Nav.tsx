@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { ArrowUpRight } from 'lucide-react';
 
 const linkBase =
   'group relative rounded-chip px-3 py-1.5 text-sm font-medium transition-colors duration-200';
@@ -20,19 +21,25 @@ const internal = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 const external =
-  `${linkBase} text-on-surface-variant hover:text-on-surface`;
+  `${linkBase} inline-flex items-center gap-1 text-on-surface-variant hover:text-on-surface`;
 
 export default function Nav() {
   return (
     <header className="sticky top-0 z-20 border-b border-outline/20 bg-surface/80 backdrop-blur-md">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:rounded-chip focus:bg-primary focus:px-3 focus:py-1.5 focus:text-sm focus:font-semibold focus:text-on-primary"
+      >
+        Skip to content
+      </a>
       <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
         <NavLink to="/" className="group flex items-center gap-2">
-          <span
+          <img
+            src="/retrostash/favicon.svg"
+            alt=""
             aria-hidden
-            className="relative inline-block size-7 overflow-hidden rounded-md bg-primary transition-transform duration-300 group-hover:rotate-6 group-hover:scale-110"
-          >
-            <span className="absolute inset-0 bg-gradient-to-br from-primary to-tertiary opacity-90" />
-          </span>
+            className="size-8 transition-transform duration-300 group-hover:rotate-6 group-hover:scale-110"
+          />
           <span className="text-base font-semibold tracking-tight text-on-surface">
             Retrostash
           </span>
@@ -65,11 +72,11 @@ export default function Nav() {
           </NavLink>
           <a className={external} href="/retrostash/playground/">
             Playground
-            <span className="ml-1 inline-block transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5">↗</span>
+            <ArrowUpRight className="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
           </a>
           <a className={external} href="/retrostash/api/">
             API
-            <span className="ml-1 inline-block transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5">↗</span>
+            <ArrowUpRight className="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
           </a>
           <a
             className={external}
@@ -78,7 +85,7 @@ export default function Nav() {
             target="_blank"
           >
             GitHub
-            <span className="ml-1 inline-block transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5">↗</span>
+            <ArrowUpRight className="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
           </a>
         </div>
       </nav>

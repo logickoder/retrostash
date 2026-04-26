@@ -1,27 +1,29 @@
 import { useState } from 'react';
+import { Globe, Layers, RefreshCw, Zap, type LucideIcon } from 'lucide-react';
 import CodeBlock from '../components/CodeBlock';
 import Hero from '../components/Hero';
+import SEO from '../components/SEO';
 
-const features = [
+const features: Array<{ title: string; body: string; Icon: LucideIcon }> = [
   {
     title: 'Persisted POST query caching',
-    body: 'Cache complex non-idempotent payloads — searches, GraphQL, reports — using the same `@CacheQuery` annotation you use on GET endpoints.',
-    icon: '◇',
+    body: 'Cache complex non-idempotent payloads — searches, GraphQL, reports — using the same @CacheQuery annotation you use on GET endpoints.',
+    Icon: Layers,
   },
   {
     title: 'Mutation-driven invalidation',
-    body: '@CacheMutate(invalidate = ["..."]) clears stale entries on a successful 2xx response. Templates resolve placeholders from @Path, @Query, and @Body.',
-    icon: '↻',
+    body: '@CacheMutate(invalidate = […]) clears stale entries on a successful 2xx response. Templates resolve placeholders from @Path, @Query, and @Body.',
+    Icon: RefreshCw,
   },
   {
     title: 'Converter-agnostic',
     body: 'Reads bytes, not parsed objects. No Gson, Moshi, or kotlinx.serialization lock-in. Works alongside whatever you already use.',
-    icon: '⚡',
+    Icon: Zap,
   },
   {
     title: 'Multiplatform from day one',
     body: 'Core, annotations, and the Ktor plugin run on Android, JVM, iOS, and wasmJs. The OkHttp / Retrofit adapter covers Android + JVM.',
-    icon: '◯',
+    Icon: Globe,
   },
 ];
 
@@ -104,6 +106,7 @@ export default function Home() {
 
   return (
     <div>
+      <SEO />
       <Hero />
 
       {/* Feature grid */}
@@ -115,8 +118,8 @@ export default function Home() {
               className="glow-card scroll-reveal rounded-card border border-outline/30 bg-secondary-container/20 p-6"
               style={{ animationDelay: `${i * 0.05}s` }}
             >
-              <div className="mb-3 flex size-10 items-center justify-center rounded-chip bg-primary-container/60 text-xl text-on-primary-container">
-                {f.icon}
+              <div className="mb-3 flex size-10 items-center justify-center rounded-chip bg-primary-container/60 text-on-primary-container">
+                <f.Icon className="size-5" aria-hidden />
               </div>
               <h3 className="mb-2 text-base font-semibold text-on-surface">{f.title}</h3>
               <p className="text-sm leading-relaxed text-on-surface-variant">{f.body}</p>
