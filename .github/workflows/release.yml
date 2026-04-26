@@ -139,14 +139,14 @@ jobs:
             zip -ry "${GITHUB_WORKSPACE}/sample-artifacts/retrostash-playground-${TAG_NAME}-web.zip" .)
 
       - name: Upload APK
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: sample-artifacts/*.apk
           retention-days: 90
 
       - name: Upload Web zip
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: web-zip
           path: sample-artifacts/*-web.zip
@@ -175,7 +175,8 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.konan
-          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml',
+            'gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             konan-${{ runner.os }}-
 
@@ -193,7 +194,8 @@ jobs:
             --console=plain
 
       - name: Build iOS XCFramework (release)
-        run: ./gradlew :retrostash-ktor:assembleRetrostashReleaseXCFramework --console=plain
+        run: ./gradlew :retrostash-ktor:assembleRetrostashReleaseXCFramework
+          --console=plain
 
       - name: Package XCFramework zip + checksum
         id: xcframework
@@ -214,10 +216,11 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_KEY_ID }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
-        run: ./gradlew publishAndReleaseToMavenCentral --console=plain --no-configuration-cache
+        run: ./gradlew publishAndReleaseToMavenCentral --console=plain
+          --no-configuration-cache
 
       - name: Upload XCFramework
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: xcframework
           path: Retrostash.xcframework.zip
@@ -231,7 +234,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -300,7 +303,8 @@ jobs:
       - name: Update README example version
         env:
           TAG_NAME: ${{ needs.prepare.outputs.tag_name }}
-        run: python3 "${GITHUB_WORKSPACE}/scripts/update_readme_version.py" "${TAG_NAME}"
+        run: python3 "${GITHUB_WORKSPACE}/scripts/update_readme_version.py"
+          "${TAG_NAME}"
 
       - name: Pin Package.swift to released version + checksum
         env:
