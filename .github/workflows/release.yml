@@ -101,7 +101,7 @@ jobs:
             --console=plain
 
       - name: Verify Maven Local publish (all KMP modules)
-        run: ./gradlew publishToMavenLocal --console=plain
+        run: ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false --console=plain
 
       - name: Build iOS XCFramework (release)
         run: ./gradlew :retrostash-ktor:assembleRetrostashReleaseXCFramework --console=plain
