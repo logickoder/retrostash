@@ -16,9 +16,10 @@ library targeting Android, JVM, and iOS.
 > Sample app `:composeApp` runs on Android, JVM desktop, iOS, and wasmJs (browser). Switch between
 > Ktor, OkHttp, and Retrofit transports via the segmented tab.
 >
-> 🌐 **[Live web demo](https://logickoder.github.io/retrostash/)** ·
-> 📦 [Android APK + Web bundle](https://github.com/logickoder/retrostash/releases) attached to each
-> release.
+> 🏠 **[Project site](https://logickoder.dev/retrostash/)** ·
+> 🌐 [Live playground](https://logickoder.dev/retrostash/playground/) ·
+> 📚 [API docs](https://logickoder.dev/retrostash/api/) ·
+> 📦 [APK + Web bundle](https://github.com/logickoder/retrostash/releases)
 
 ### Key Features
 - **Persisted POST query caching:** Safely cache complex payloads like searches and GraphQL.

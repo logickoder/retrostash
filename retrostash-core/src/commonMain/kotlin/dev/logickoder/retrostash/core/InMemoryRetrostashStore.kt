@@ -5,6 +5,18 @@ import kotlinx.coroutines.sync.withLock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
 
+/**
+ * Thread-safe in-memory [RetrostashStore]. Backed by a [LinkedHashMap] guarded by a
+ * `kotlinx.coroutines.sync.Mutex` so it works on every KMP target (no `synchronized`).
+ *
+ * Suitable for short-lived process caches and as the default store for the playground app.
+ * For persistence across process restarts on Android, use `AndroidRetrostashStore` from
+ * `retrostash-okhttp`.
+ *
+ * Entry expiry uses `kotlin.time.TimeSource.Monotonic`, so wall-clock changes don't affect TTLs.
+ * No size cap — long-lived caches should pair this with explicit `clear()` calls or use a
+ * size-bounded implementation.
+ */
 class InMemoryRetrostashStore : RetrostashStore {
     private val entries = linkedMapOf<String, Entry>()
     private val mutex = Mutex()

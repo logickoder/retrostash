@@ -11,6 +11,7 @@ coroutines = "1.10.2"
 ktor = "3.4.2"
 lifecycle = "2.8.6"
 vanniktech-publish = "0.36.0"
+dokka = "2.1.0"
 compose-multiplatform = "1.10.3"
 activity-compose = "1.13.0"
 
@@ -46,6 +47,7 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 android-kmp-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 vanniktech-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktech-publish" }
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
 compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

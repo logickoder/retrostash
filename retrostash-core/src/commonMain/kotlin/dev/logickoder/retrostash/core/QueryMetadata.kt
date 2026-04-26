@@ -1,5 +1,17 @@
 package dev.logickoder.retrostash.core
 
+/**
+ * Transport-agnostic description of a single query call, sufficient for [CoreKeyResolver] to
+ * derive a stable cache key.
+ *
+ * @property scopeName Logical namespace — usually the API interface simple name (e.g.
+ * `"UserApi"`). Prevents key collisions between unrelated APIs sharing template shapes.
+ * @property template Cache template with `{placeholder}` syntax (e.g. `"users/{id}"`).
+ * @property bindings Already-known placeholder values (typically extracted from `@Path` /
+ * `@Query` parameters by the transport adapter).
+ * @property bodyBytes Raw request body, used as a fallback source for placeholders not present
+ * in [bindings] — looked up via [Utf8JsonLookup].
+ */
 data class QueryMetadata(
     val scopeName: String,
     val template: String,

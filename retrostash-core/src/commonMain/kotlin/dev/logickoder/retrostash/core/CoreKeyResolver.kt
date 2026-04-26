@@ -1,7 +1,23 @@
 package dev.logickoder.retrostash.core
 
+/**
+ * Builds a stable cache key from [QueryMetadata].
+ *
+ * Resolution order for each `{placeholder}` in [QueryMetadata.template]:
+ *  1. [QueryMetadata.bindings] — populated from `@Path` / `@Query` by the transport adapter.
+ *  2. [QueryMetadata.bodyBytes] — JSON body searched for a matching primitive field via
+ *     [Utf8JsonLookup].
+ *  3. Unresolved → returns `null`. Caller skips the cache action safely.
+ *
+ * Output shape: `scopeName|<resolvedTemplate>|<fingerprint-hash>` where `fingerprint` is a
+ * deterministic 64-bit FNV-style hash of the sorted `key=value` bindings, hex-encoded.
+ */
 class CoreKeyResolver {
 
+    /**
+     * Resolves [metadata] into a cache key, or `null` if any placeholder cannot be filled from
+     * [QueryMetadata.bindings] or [QueryMetadata.bodyBytes].
+     */
     fun resolve(metadata: QueryMetadata): String? {
         if (metadata.template.isBlank()) return null
 

@@ -7,6 +7,14 @@ import java.io.File
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 
+/**
+ * Android-specific [RetrostashStore] backed by:
+ *  - `Context.cacheDir/<config.cacheDirName>/` — payload files (one per cached entry).
+ *  - `SharedPreferences(<config.prefsName>)` — JSON index of `key → metadata`.
+ *
+ * Survives process restarts. Capped by [RetrostashOkHttpConfig.maxEntries] and
+ * [RetrostashOkHttpConfig.maxBytes] (LRU eviction). Thread-safe via internal monitor.
+ */
 class AndroidRetrostashStore(
     context: Context,
     private val config: RetrostashOkHttpConfig = RetrostashOkHttpConfig(),

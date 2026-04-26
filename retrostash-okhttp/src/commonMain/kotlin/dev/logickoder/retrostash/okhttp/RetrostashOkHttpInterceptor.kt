@@ -12,6 +12,26 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.Invocation
 
+/**
+ * OkHttp [Interceptor] that powers `@CacheQuery` / `@CacheMutate` semantics.
+ *
+ * Reads metadata from the request via either:
+ *  - An [OkHttpRetrostashMetadata] tag attached by [retrostash], [retrostashQuery], or
+ *    [retrostashMutate].
+ *  - A Retrofit `Invocation` tag — auto-extracted via [RetrofitMetadataExtractor].
+ *
+ * On a query: short-circuits to a synthetic [Response] built from the cached payload when the
+ * key resolves and the entry is fresh.
+ *
+ * On a mutation: forwards the call to the network, then on `2xx` resolves
+ * [OkHttpRetrostashMetadata.invalidateTemplates] against bindings and invalidates each.
+ *
+ * On any GET (when [RetrostashOkHttpConfig.enableGetCaching]): rewrites `Cache-Control` so
+ * OkHttp's own disk cache can hold the body for [RetrostashOkHttpConfig.getMaxAgeSeconds].
+ *
+ * The synthetic cache-hit response carries a custom `X-Retrostash-Source` header so callers can
+ * distinguish hit/miss without inspecting the cache directly.
+ */
 class RetrostashOkHttpInterceptor(
     private val engine: RetrostashEngine,
     private val config: RetrostashOkHttpConfig = RetrostashOkHttpConfig(),

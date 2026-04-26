@@ -5,8 +5,16 @@ import dev.logickoder.retrostash.core.CoreKeyResolver
 import dev.logickoder.retrostash.core.RetrostashEngine
 import okhttp3.OkHttpClient
 
+/**
+ * Android convenience factories for [RetrostashOkHttpBridge].
+ *
+ * Combines an [AndroidRetrostashStore] (Context-backed disk + SharedPreferences index) with the
+ * bridge so callers don't need to wire the store manually. JVM-only consumers should construct
+ * [RetrostashOkHttpBridge] directly.
+ */
 object RetrostashOkHttpAndroid {
 
+    /** Creates a [RetrostashOkHttpBridge] backed by an [AndroidRetrostashStore]. */
     @JvmStatic
     @JvmOverloads
     fun create(
@@ -28,6 +36,10 @@ object RetrostashOkHttpAndroid {
         )
     }
 
+    /**
+     * Creates a bridge and installs its interceptors onto [builder]. Returns the bridge so
+     * callers can keep a reference for direct invalidation later.
+     */
     @JvmStatic
     @JvmOverloads
     fun install(
@@ -40,6 +52,11 @@ object RetrostashOkHttpAndroid {
         return bridge
     }
 
+    /**
+     * Clears the entire on-disk cache for the namespace defined by [config]. Suitable for
+     * "logout" flows where every cached entry must go. Cheaper than instantiating a bridge just
+     * to call `store.clear()`.
+     */
     @JvmStatic
     @JvmOverloads
     fun clear(

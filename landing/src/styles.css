@@ -1,0 +1,138 @@
+@import "tailwindcss";
+
+/* Tokens — keep in sync with DESIGN_SYSTEM.md (dark scheme). */
+@theme {
+  --color-primary: #D0BCFF;
+  --color-on-primary: #381E72;
+  --color-primary-container: #4F378B;
+  --color-on-primary-container: #EADDFF;
+  --color-secondary: #CCC2DC;
+  --color-on-secondary: #332D41;
+  --color-secondary-container: #4A4458;
+  --color-on-secondary-container: #E8DEF8;
+  --color-tertiary: #EFB8C8;
+  --color-error: #F2B8B5;
+  --color-surface: #1C1B1F;
+  --color-on-surface: #E6E1E5;
+  --color-surface-variant: #49454F;
+  --color-on-surface-variant: #CAC4D0;
+  --color-outline: #938F99;
+
+  --radius-card: 16px;
+  --radius-chip: 8px;
+
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", monospace;
+
+  /* motion */
+  --animate-fade-up: fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade-in: fade-in 0.5s ease-out both;
+  --animate-float: float 14s ease-in-out infinite;
+  --animate-shimmer: shimmer 2.4s linear infinite;
+  --animate-pulse-slow: pulse-slow 4s ease-in-out infinite;
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33%      { transform: translate(40px, -30px) scale(1.05); }
+    66%      { transform: translate(-30px, 40px) scale(0.95); }
+  }
+  @keyframes shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 0.5; }
+    50%      { opacity: 1; }
+  }
+}
+
+html, body, #root {
+  min-height: 100%;
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+/* Reusable utilities */
+.gradient-text {
+  background: linear-gradient(135deg, #D0BCFF 0%, #EFB8C8 50%, #CCC2DC 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.shimmer-cta {
+  background-image: linear-gradient(
+    110deg,
+    var(--color-primary) 0%,
+    #E9D5FF 45%,
+    var(--color-primary) 55%,
+    var(--color-primary) 100%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+.glow-card {
+  position: relative;
+  isolation: isolate;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease;
+}
+.glow-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, transparent 0%, rgba(208, 188, 255, 0.4) 50%, transparent 100%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+.glow-card:hover {
+  transform: translateY(-2px);
+}
+.glow-card:hover::before {
+  opacity: 1;
+}
+
+.scroll-reveal {
+  animation: var(--animate-fade-up);
+  animation-timeline: view();
+  animation-range: entry 0% cover 30%;
+}
+@supports not (animation-timeline: view()) {
+  .scroll-reveal {
+    animation: var(--animate-fade-up);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

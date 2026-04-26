@@ -2,12 +2,24 @@ package dev.logickoder.retrostash.okhttp
 
 import okhttp3.Request
 
+/**
+ * Attaches or merges [metadata] onto this `Request.Builder` as an OkHttp tag. Existing tag
+ * fields are preserved when incoming values are blank/null/empty.
+ */
 fun Request.Builder.retrostash(metadata: OkHttpRetrostashMetadata): Request.Builder {
     val current = build().tag(OkHttpRetrostashMetadata::class.java)
     val merged = mergeRetrostashMetadata(current, metadata)
     return tag(OkHttpRetrostashMetadata::class.java, merged)
 }
 
+/**
+ * Marks this request as a Retrostash query. Equivalent to `@CacheQuery` for direct OkHttp use.
+ *
+ * @param scopeName Logical namespace (typically the API class name).
+ * @param template Cache template (e.g. `"users/{id}"`).
+ * @param bindings Placeholder values from the call site.
+ * @param maxAgeMs TTL in milliseconds. `0` disables persistence (lookup-only).
+ */
 fun Request.Builder.retrostashQuery(
     scopeName: String,
     template: String,
@@ -23,6 +35,11 @@ fun Request.Builder.retrostashQuery(
     return retrostash(metadata)
 }
 
+/**
+ * Marks this request as a Retrostash mutation. Equivalent to `@CacheMutate` for direct OkHttp
+ * use. On a `2xx` response, [RetrostashOkHttpInterceptor] resolves [invalidateTemplates] against
+ * [bindings] and clears matching cache entries.
+ */
 fun Request.Builder.retrostashMutate(
     scopeName: String,
     invalidateTemplates: List<String>,

@@ -8,6 +8,14 @@ import dev.logickoder.retrostash.core.Utf8JsonLookup
 
 private val PLACEHOLDER_REGEX = Regex("\\{([^}]+)\\}")
 
+/**
+ * Thin adapter that translates [RetrostashKtorMetadata] into [QueryMetadata] for the underlying
+ * [RetrostashEngine]. Used by [RetrostashPlugin]; can also be used directly for testing without
+ * spinning up a Ktor `HttpClient`.
+ *
+ * Resolves invalidation templates against bindings / bodyBytes before passing them on to
+ * [RetrostashEngine.invalidateTemplates] — matches the semantics of `RetrostashOkHttpInterceptor`.
+ */
 class RetrostashKtorRuntime(
     val engine: RetrostashEngine,
 ) {

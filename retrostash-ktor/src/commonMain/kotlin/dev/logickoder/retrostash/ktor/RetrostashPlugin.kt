@@ -8,6 +8,37 @@ import io.ktor.client.plugins.api.createClientPlugin
 import io.ktor.http.HeadersBuilder
 import io.ktor.http.HttpHeaders
 
+/**
+ * Ktor `HttpClient` plugin that adds annotation-style query caching and mutation invalidation.
+ *
+ * Installs request/response hooks that:
+ *  - On request: look up [RetrostashKtorMetadata.queryTemplate] in the store. If present, mark
+ *    the call as a cache hit (sets `Cache-Control: only-if-cached` + custom headers) and stash
+ *    the cached payload under [RetrostashCachedPayloadKey] for the caller to read.
+ *  - On response: skip on non-2xx. Otherwise invalidate any
+ *    [RetrostashKtorMetadata.invalidateTemplates] (resolved against bindings) and persist the
+ *    response body when the metadata declares a query template + `maxAgeMs > 0`.
+ *
+ * Wire metadata onto a request with [retrostashQuery] / [retrostashMutate].
+ *
+ * ```kotlin
+ * val client = HttpClient {
+ *     install(RetrostashPlugin) {
+ *         store = InMemoryRetrostashStore()
+ *         timeoutMs = 250
+ *     }
+ * }
+ *
+ * client.get("https://api.example.com/feed/7") {
+ *     retrostashQuery(
+ *         scopeName = "FeedApi",
+ *         template = "feed/{id}",
+ *         bindings = mapOf("id" to "7"),
+ *         maxAgeMs = 60_000L,
+ *     )
+ * }
+ * ```
+ */
 val RetrostashPlugin = createClientPlugin("Retrostash", ::RetrostashConfig) {
 	val configuredStore = pluginConfig.store ?: return@createClientPlugin
     val log = pluginConfig.logger
