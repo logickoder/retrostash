@@ -10,7 +10,6 @@ import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.engine.okhttp.OkHttp
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
-import retrofit2.converter.scalars.ScalarsConverterFactory
 
 actual object Platform : IPlatform {
     override val name: String = "Android"
@@ -41,7 +40,6 @@ actual object Platform : IPlatform {
         val retrofit = Retrofit.Builder()
             .baseUrl("https://jsonplaceholder.typicode.com/")
             .client(client)
-            .addConverterFactory(ScalarsConverterFactory.create())
             .build()
         val api = retrofit.create(RetrofitPostsApi::class.java)
         return RetrofitDemoEngine(api = api, client = client, onLog = onLog)

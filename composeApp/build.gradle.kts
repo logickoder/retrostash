@@ -56,7 +56,6 @@ kotlin {
                 implementation(libs.ktor.client.okhttp)
                 implementation(libs.okhttp)
                 implementation(libs.retrofit)
-                implementation(libs.retrofit.scalars)
                 implementation(project(":retrostash-okhttp"))
             }
         }
