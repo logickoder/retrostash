@@ -75,12 +75,12 @@ dependencyResolutionManagement {
 ```kotlin
 // module build.gradle.kts
 dependencies {
-    implementation("dev.logickoder:retrostash-core:0.0.5")
-    implementation("dev.logickoder:retrostash-annotations:0.0.5")
+    implementation("dev.logickoder:retrostash-core:0.0.6")
+    implementation("dev.logickoder:retrostash-annotations:0.0.6")
     // pick your transport:
-    implementation("dev.logickoder:retrostash-okhttp:0.0.5")
+    implementation("dev.logickoder:retrostash-okhttp:0.0.6")
     // or
-    implementation("dev.logickoder:retrostash-ktor:0.0.5")
+    implementation("dev.logickoder:retrostash-ktor:0.0.6")
 }
 ```
 
