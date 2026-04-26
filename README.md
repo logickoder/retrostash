@@ -1,51 +1,53 @@
 # Retrostash
 
-**Retrostash** is an annotation-driven caching layer for Retrofit and OkHttp. It solves two massive pain points in Android networking: caching non-idempotent queries (like `POST` searches or GraphQL) and automatically invalidating cached data when mutations (like `POST` or `PUT` updates) occur.
+**Retrostash** is an annotation-driven caching layer for Retrofit, OkHttp, and Ktor. It solves two
+pain points in Kotlin networking: caching non-idempotent queries (like `POST` searches or GraphQL)
+and automatically invalidating cached data when mutations occur. Available as a Kotlin Multiplatform
+library targeting Android, JVM, and iOS.
 
 [![GitHub Release](https://img.shields.io/github/v/release/logickoder/retrostash?label=release)](https://github.com/logickoder/retrostash/releases)
-[![JitPack](https://jitpack.io/v/logickoder/retrostash.svg)](https://jitpack.io/#logickoder/retrostash)
 
 ### Key Features
 - **Persisted POST query caching:** Safely cache complex payloads like searches and GraphQL.
 - **Mutation-driven cache invalidation:** Automatically clear stale data when a user updates a resource.
 - **Dynamic key resolution:** Cache templates are resolved directly from `@Path`, `@Query`, and `@Body` parameters.
-- **HTTP cache friendliness:** Includes GET cache header policies that work seamlessly with OkHttp.
+- **HTTP cache friendliness:** GET cache header policies that work seamlessly with OkHttp.
+- **Multiplatform:** Core engine + annotations + Ktor plugin run on Android, JVM, and iOS. OkHttp
+  adapter runs on Android + JVM.
 
 ### 100% Converter Agnostic
-Retrostash intentionally avoids `Gson` or `Moshi` lock-in by intercepting the raw OkHttp `RequestBody`. Key resolution works seamlessly with plain Kotlin/Java objects, Maps, Arrays, and Android `JSONObject`, regardless of your chosen serialization library.
+
+Retrostash intercepts the raw `RequestBody` (OkHttp) or `HttpRequestBuilder` attributes (Ktor). Key
+resolution works with plain Kotlin objects, Maps, Arrays, JSON bytes — no `Gson`/`Moshi`/
+`kotlinx.serialization` lock-in.
+
+---
+
+## Modules
+
+| Module                   | Targets                                           | Purpose                                          |
+|--------------------------|---------------------------------------------------|--------------------------------------------------|
+| `retrostash-core`        | android, jvm, iosX64, iosArm64, iosSimulatorArm64 | Engine, key resolver, in-memory store            |
+| `retrostash-annotations` | android, jvm, ios*                                | `@CacheQuery`, `@CacheMutate`                    |
+| `retrostash-ktor`        | android, jvm, ios*                                | Ktor `HttpClient` plugin                         |
+| `retrostash-okhttp`      | android, jvm                                      | OkHttp interceptor + Retrofit metadata extractor |
 
 ---
 
 ## Public API
 
-**Primary API surface:**
+**Primary surface:**
 - `@CacheQuery(key = "...")`
 - `@CacheMutate(invalidate = ["..."])`
-- `Retrostash.install(...)`
-- `Retrostash.from(okHttpClient)`
-- `Retrostash.clear(...)`
-- `RetrostashConfig`
-
-*Advanced classes remain available for manual wiring:*
-- `NetworkCacheKeyResolver`
-- `NetworkCacheInvalidator`
-- `PostResponseCacheStore`
-- `NetworkCachePolicyInterceptor`
-- `CacheControlInterceptor`
-
-## How It Works
-
-1. Query methods are annotated with `@CacheQuery` and a template key.
-2. Mutation methods are annotated with `@CacheMutate` and invalidation templates.
-3. On successful mutation responses, resolved invalidation keys are marked dirty.
-4. Dirty query keys force a network refresh on the next call.
-5. Successful POST query responses can be persisted and replayed when the key is clean.
+- `RetrostashStore`, `InMemoryRetrostashStore`, `RetrostashEngine` (core)
+- `RetrostashPlugin`, `retrostashQuery`, `retrostashMutate` (ktor)
+- `RetrostashOkHttpBridge`, `RetrostashOkHttpAndroid` (okhttp)
 
 ---
 
-## Integration (Recommended)
+## Integration
 
-### 1) Add dependency
+### Android / JVM (Gradle)
 
 ```kotlin
 // settings.gradle.kts
@@ -53,7 +55,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven("[https://jitpack.io](https://jitpack.io)")
     }
 }
 ```
@@ -61,160 +62,150 @@ dependencyResolutionManagement {
 ```kotlin
 // module build.gradle.kts
 dependencies {
-    implementation("com.github.logickoder:retrostash:0.0.4")
+    implementation("dev.logickoder:retrostash-core:0.0.5")
+    implementation("dev.logickoder:retrostash-annotations:0.0.5")
+    // pick your transport:
+    implementation("dev.logickoder:retrostash-okhttp:0.0.5")
+    // or
+    implementation("dev.logickoder:retrostash-ktor:0.0.5")
 }
 ```
 
-*The README version is updated automatically on release to match the latest tag.*
+### iOS (Swift Package Manager)
 
-### 2) Annotate Retrofit service
+In Xcode: **File → Add Packages…** → enter `https://github.com/logickoder/retrostash` and pick the
+version. The `Retrostash` product bundles core + annotations + Ktor plugin as a single XCFramework.
+
+```swift
+import Retrostash
+```
+
+---
+
+## OkHttp / Retrofit (Android)
 
 ```kotlin
 interface UserApi {
-    
-    // 1. A complex POST query that we want to cache locally
     @CacheQuery("users/{id}?tenant={tenant}")
     @POST("users/{id}")
     suspend fun getUser(
         @Path("id") id: String,
-        @Body req: UserRequest, // Retrostash automatically extracts {tenant} from this body
+        @Body req: UserRequest,
     ): UserResponse
 
-    // 2. A mutation that immediately invalidates the cache from #1
     @CacheMutate(invalidate = ["users/{id}?tenant={tenant}"])
     @POST("users/{id}/update")
     suspend fun updateUser(
         @Path("id") id: String,
-        @Body req: UpdateUserRequest, // Retrostash builds the invalidation key from these parameters
+        @Body req: UpdateUserRequest,
     ): UpdateUserResponse
 }
-
-data class UserRequest(val tenant: String)
 ```
 
-### 3) Install Retrostash in OkHttp
-
 ```kotlin
-val cache = Cache(
-    directory = File(appContext.cacheDir, "http-cache"),
-    maxSize = 10L * 1024L * 1024L,
-)
+val cache = Cache(File(appContext.cacheDir, "http-cache"), 10L * 1024 * 1024)
+val okHttpBuilder = OkHttpClient.Builder().cache(cache)
 
-val okHttpBuilder = OkHttpClient.Builder()
-    .cache(cache)
-
-// The simplest setup uses sane defaults:
-val retrostash = Retrostash.install(
-    builder = okHttpBuilder,
-    context = appContext
-)
-
-// Or customize TTLs, sizes, and logging:
-/*
-val retrostash = Retrostash.install(
+val bridge = RetrostashOkHttpAndroid.install(
     builder = okHttpBuilder,
     context = appContext,
-    config = RetrostashConfig(
-        getMaxAgeSeconds = 60 * 60,
-        enableGetCaching = true,
-        invalidationTtlMs = 24 * 60 * 60 * 1000L,
-        postCacheMaxEntries = 64,
-        postCacheMaxBytes = 4 * 1024 * 1024L,
-        postCacheTtlMs = 15 * 60 * 1000L,
-        logger = { message -> Log.d("Retrostash", message) },
-    )
+    config = RetrostashOkHttpConfig(logger = { Log.d("Retrostash", it) }),
 )
-*/
 
 val okHttpClient = okHttpBuilder.build()
-
-// If needed later, recover the same instance from the built client.
-val sameRetrostash = Retrostash.from(okHttpClient)
+val sameBridge = RetrostashOkHttpBridge.from(okHttpClient)
 ```
 
-If you want ordinary GET responses to be stored and reused, keep the OkHttp cache configured. Retrostash rewrites cache-control headers and handles POST replay plus mutation invalidation, but OkHttp still owns the actual HTTP cache storage for normal GET caching.
+JVM (non-Android) consumers construct `RetrostashOkHttpBridge` directly with their own
+`RetrostashStore` impl — no `Context` needed.
 
-### 4) Build Retrofit
+## Ktor (KMP)
 
 ```kotlin
-val retrofit = Retrofit.Builder()
-    .baseUrl("[https://api.example.com/](https://api.example.com/)")
-    .client(okHttpClient)
-    .build()
+val store = InMemoryRetrostashStore()
+val client = HttpClient {
+    install(RetrostashPlugin) {
+        this.store = store
+        timeoutMs = 250
+        logger = { println(it) }
+    }
+}
+
+client.get("https://api.example.com/feed/7") {
+    retrostashQuery(
+        scopeName = "FeedApi",
+        template = "feed/{id}",
+        bindings = mapOf("id" to "7"),
+        maxAgeMs = 60_000L,
+    )
+}
+
+client.post("https://api.example.com/feed/7") {
+    retrostashMutate(
+        scopeName = "FeedApi",
+        invalidateTemplates = listOf("feed/7"),
+        bindings = mapOf("id" to "7"),
+    )
+}
 ```
 
 ---
 
 ## Template Rules
 
-Templates use `{placeholder}` syntax.
-
-Placeholder sources:
+Templates use `{placeholder}` syntax. Placeholder sources:
 - `@Path("name")`
 - `@Query("name")`
 - Matching field names found recursively in `@Body`
 
-If any placeholder cannot be resolved, the key is treated as unresolved and that cache action is skipped safely.
+If any placeholder cannot be resolved, the key is treated as unresolved and the cache action is
+skipped safely.
 
 When using `@CacheMutate`, include every related query template in `invalidate`, including POST-based query templates if you use `@CacheQuery` on POST endpoints.
 
 ## Clearing Cache
 
 ```kotlin
-Retrostash.clear(appContext)
+RetrostashOkHttpAndroid.clear(appContext)
+// or for any RetrostashStore:
+store.clear()
 ```
 
 ## External Invalidation
 
-If you need to invalidate outside interceptor flow, Retrostash can mark query keys dirty directly.
-
-**By template plus bindings:**
 ```kotlin
-val retrostash = Retrostash.from(okHttpClient) ?: return
-
-retrostash.invalidateQuery(
+val bridge = RetrostashOkHttpBridge.from(okHttpClient) ?: return
+bridge.invalidateQuery(
     apiClass = UserApi::class.java,
     template = "users/{id}?tenant={tenant}",
-    bindings = mapOf(
-        "id" to "42",
-        "tenant" to "acme",
-    ),
+    bindings = mapOf("id" to "42", "tenant" to "acme"),
 )
 ```
 
-**By resolved internal key:**
-```kotlin
-val retrostash = Retrostash.from(okHttpClient) ?: return
+## Migrating from 0.0.4
 
-retrostash.invalidateQueryKey(
-    key = "UserApi|users/42?tenant=acme|...",
-)
-```
-
-This applies to both GET and POST queries annotated with `@CacheQuery`.
-
-### Optional Logging
-
-Retrostash accepts an optional `logger` callback in `RetrostashConfig`. Use it when you want visibility into:
-- Cache-control rewrites
-- Response source labels
-- Dirty-key invalidations
-- Persisted POST cache writes and hits
-
-It is especially useful when you want to confirm whether a response came from Retrostash's persisted POST cache, the standard OkHttp cache, or the network.
-
----
+| Old (0.0.4)                                                | New (0.0.5)                                                              |
+|------------------------------------------------------------|--------------------------------------------------------------------------|
+| `Retrostash.install(builder, context)`                     | `RetrostashOkHttpAndroid.install(builder, context)`                      |
+| `Retrostash.from(client)`                                  | `RetrostashOkHttpBridge.from(client)`                                    |
+| `Retrostash.clear(context)`                                | `RetrostashOkHttpAndroid.clear(context)`                                 |
+| `RetrostashConfig`                                         | `RetrostashOkHttpConfig` (OkHttp) or `RetrostashConfig` (Ktor)           |
+| `PostResponseCacheStore`                                   | `RetrostashStore` + `InMemoryRetrostashStore` / `AndroidRetrostashStore` |
+| `NetworkCachePolicyInterceptor`, `CacheControlInterceptor` | merged into `RetrostashOkHttpInterceptor`                                |
+| JitPack coords `com.github.logickoder:retrostash`          | Maven Central coords `dev.logickoder:retrostash-*`                       |
 
 ## Notes
 
-- `NetworkCachePolicyInterceptor` should remain an application interceptor.
-- `CacheControlInterceptor` is installed as a network interceptor by `Retrostash.install(...)`.
-- For manual wiring, keep this ordering to preserve behavior.
+- For OkHttp, the bridge installs both an application interceptor (handle/marker) and a network
+  interceptor (cache-control rewrites). Use `RetrostashOkHttpAndroid.install` to wire them in the
+  right order automatically.
+- For Ktor, response persistence happens on 2xx only; invalidation also gates on 2xx. Non-2xx
+  responses leave the cache untouched.
 
 ## Contributing and Releases
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [development.md](development.md) for:
 - Contribution workflow
-- Local Maven publishing
+- Local Maven publishing (`./gradlew publishToMavenLocal`)
+- iOS XCFramework build (`./gradlew :retrostash-ktor:assembleRetrostashReleaseXCFramework`)
 - Release/versioning flow
-- Auto-deployment behavior after tags

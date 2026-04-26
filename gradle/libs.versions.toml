@@ -7,6 +7,12 @@ gson = "2.10.1"
 junit = "4.13.2"
 runner = "1.6.2"
 espresso = "3.6.1"
+coroutines = "1.10.2"
+ktor = "3.4.2"
+lifecycle = "2.8.6"
+vanniktech-publish = "0.36.0"
+compose-multiplatform = "1.10.3"
+activity-compose = "1.13.0"
 
 [libraries]
 # AndroidX dependencies
@@ -16,9 +22,21 @@ core-material = "com.google.android.material:material:1.13.0"
 # Networking
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
+retrofit-scalars = { group = "com.squareup.retrofit2", name = "converter-scalars", version.ref = "retrofit" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
+coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
+ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
+ktor-client-mock = { group = "io.ktor", name = "ktor-client-mock", version.ref = "ktor" }
+ktor-client-darwin = { group = "io.ktor", name = "ktor-client-darwin", version.ref = "ktor" }
+ktor-client-js = { group = "io.ktor", name = "ktor-client-js", version.ref = "ktor" }
+ktor-client-cio = { group = "io.ktor", name = "ktor-client-cio", version.ref = "ktor" }
+activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activity-compose" }
+lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
 # Testing dependencies
+coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 runner = { group = "androidx.test", name = "runner", version.ref = "runner" }
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
@@ -26,5 +44,11 @@ espresso-core = { group = "androidx.test.espresso", name = "espresso-core", vers
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
+android-kmp-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+vanniktech-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktech-publish" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 

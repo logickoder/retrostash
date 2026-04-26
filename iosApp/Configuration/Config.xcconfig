@@ -1,0 +1,7 @@
+TEAM_ID=
+
+PRODUCT_NAME=Retrostash Playground
+PRODUCT_BUNDLE_IDENTIFIER=dev.logickoder.retrostash.example.RetrostashPlayground$(TEAM_ID)
+
+CURRENT_PROJECT_VERSION=1
+MARKETING_VERSION=1.0

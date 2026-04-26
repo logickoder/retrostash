@@ -5,42 +5,27 @@ import re
 import sys
 from pathlib import Path
 
+MODULES = ("retrostash-core", "retrostash-annotations", "retrostash-ktor", "retrostash-okhttp")
+
 
 def update_readme_version(tag_name: str, readme_path: Path) -> int:
     text = readme_path.read_text(encoding="utf-8")
     updated = text
+    total = 0
 
-    # Prefer updating the explicit example bullet line when present.
-    example_pattern = re.compile(
-        r'(^\s*-\s*`?implementation\("com\.github\.logickoder:retrostash:)[^"`\)]+("\)`?\s*$)',
-        flags=re.MULTILINE,
-    )
-    updated, example_count = example_pattern.subn(
-        rf"\g<1>{tag_name}\g<2>",
-        updated,
-        count=1,
-    )
-
-    # Fallback: update the first non-placeholder dependency occurrence.
-    if example_count == 0:
-        generic_pattern = re.compile(
-            r'implementation\("com\.github\.logickoder:retrostash:([^"\)]+)"\)'
+    for module in MODULES:
+        pattern = re.compile(
+            rf'(implementation\("dev\.logickoder:{re.escape(module)}:)[^"\)]+("\))'
         )
+        updated, count = pattern.subn(rf"\g<1>{tag_name}\g<2>", updated)
+        total += count
 
-        def replace_first(match: re.Match[str]) -> str:
-            current = match.group(1)
-            if current == "<tag>":
-                return match.group(0)
-            return f'implementation("com.github.logickoder:retrostash:{tag_name}")'
-
-        updated, _ = generic_pattern.subn(replace_first, updated, count=1)
-
-    if updated == text:
-        print("README version line not updated (pattern not found or already current).")
+    if total == 0 or updated == text:
+        print("README version lines not updated (pattern not found or already current).")
         return 0
 
     readme_path.write_text(updated, encoding="utf-8")
-    print(f"README version line updated to {tag_name}.")
+    print(f"README updated {total} dependency line(s) to {tag_name}.")
     return 0
 
 

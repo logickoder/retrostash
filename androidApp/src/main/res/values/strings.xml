@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">retrostash</string>
+    <string name="sample_title">Retrostash Example (OkHttp + Ktor switchable)</string>
+    <string name="switch_transport">Switch transport</string>
+    <string name="transport_okhttp">Transport: Retrofit + OkHttp</string>
+    <string name="transport_ktor">Transport: Ktor Client</string>
+    <string name="load_posts">Load posts (query)</string>
+    <string name="create_post">Create post (mutation)</string>
+    <string name="search_posts">Search posts (POST query)</string>
+    <string name="refresh_posts">Refresh posts (GET mutation)</string>
+    <string name="status_idle">Ready. Tap a button to run a request.</string>
+</resources>
