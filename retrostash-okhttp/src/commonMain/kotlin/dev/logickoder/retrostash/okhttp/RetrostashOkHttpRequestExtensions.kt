@@ -19,18 +19,22 @@ fun Request.Builder.retrostash(metadata: OkHttpRetrostashMetadata): Request.Buil
  * @param template Cache template (e.g. `"users/{id}"`).
  * @param bindings Placeholder values from the call site.
  * @param maxAgeMs TTL in milliseconds. `0` disables persistence (lookup-only).
+ * @param tags Tag templates to resolve and persist with the cache entry. Same `{placeholder}`
+ * syntax as [template]; resolved against [bindings] / request body at write time.
  */
 fun Request.Builder.retrostashQuery(
     scopeName: String,
     template: String,
     bindings: Map<String, String> = emptyMap(),
     maxAgeMs: Long = 0L,
+    tags: List<String> = emptyList(),
 ): Request.Builder {
     val metadata = OkHttpRetrostashMetadata(
         scopeName = scopeName,
         queryTemplate = template,
         bindings = bindings,
         maxAgeMs = maxAgeMs,
+        tagTemplates = tags,
     )
     return retrostash(metadata)
 }
@@ -39,16 +43,21 @@ fun Request.Builder.retrostashQuery(
  * Marks this request as a Retrostash mutation. Equivalent to `@CacheMutate` for direct OkHttp
  * use. On a `2xx` response, [RetrostashOkHttpInterceptor] resolves [invalidateTemplates] against
  * [bindings] and clears matching cache entries.
+ *
+ * @param invalidateTags Tag templates to resolve and clear on a `2xx` response (parallel to
+ * [invalidateTemplates] but matched against per-entry tag sets instead of key templates).
  */
 fun Request.Builder.retrostashMutate(
     scopeName: String,
-    invalidateTemplates: List<String>,
+    invalidateTemplates: List<String> = emptyList(),
     bindings: Map<String, String> = emptyMap(),
+    invalidateTags: List<String> = emptyList(),
 ): Request.Builder {
     val metadata = OkHttpRetrostashMetadata(
         scopeName = scopeName,
         bindings = bindings,
         invalidateTemplates = invalidateTemplates,
+        invalidateTagTemplates = invalidateTags,
     )
     return retrostash(metadata)
 }
@@ -68,6 +77,9 @@ private fun mergeRetrostashMetadata(
         current.bindings
     }
     val invalidates = (current.invalidateTemplates + incoming.invalidateTemplates).distinct()
+    val tagTemplates = (current.tagTemplates + incoming.tagTemplates).distinct()
+    val invalidateTagTemplates =
+        (current.invalidateTagTemplates + incoming.invalidateTagTemplates).distinct()
 
     return OkHttpRetrostashMetadata(
         scopeName = scope,
@@ -75,5 +87,7 @@ private fun mergeRetrostashMetadata(
         maxAgeMs = maxAgeMs,
         bindings = bindings,
         invalidateTemplates = invalidates,
+        tagTemplates = tagTemplates,
+        invalidateTagTemplates = invalidateTagTemplates,
     )
 }

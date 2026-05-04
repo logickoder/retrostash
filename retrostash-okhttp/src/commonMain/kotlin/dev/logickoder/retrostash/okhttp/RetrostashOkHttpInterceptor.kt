@@ -92,6 +92,7 @@ class RetrostashOkHttpInterceptor(
                 template = queryTemplate,
                 bindings = metadata.bindings,
                 bodyBytes = bodyBytes,
+                tagTemplates = metadata.tagTemplates,
             )
             val payload = networkResponse.peekBody(Long.MAX_VALUE).bytes()
             val envelope = CachedHttpEnvelope(
@@ -125,6 +126,15 @@ class RetrostashOkHttpInterceptor(
             }
         }
 
+        if (!metadata?.invalidateTagTemplates.isNullOrEmpty()) {
+            val resolvedTags = metadata.invalidateTagTemplates.mapNotNull { template ->
+                resolveTemplate(template, metadata.bindings, bodyBytes)
+            }
+            runBlocking {
+                engine.invalidateTags(resolvedTags)
+            }
+        }
+
         return rewriteCacheControl(markResponseSource(networkResponse), request, metadata)
     }
 
@@ -133,8 +143,10 @@ class RetrostashOkHttpInterceptor(
         request: okhttp3.Request,
         metadata: OkHttpRetrostashMetadata?,
     ): Response {
+        val isMutation = !metadata?.invalidateTemplates.isNullOrEmpty()
+            || !metadata?.invalidateTagTemplates.isNullOrEmpty()
         return when {
-            !metadata?.invalidateTemplates.isNullOrEmpty() -> response.newBuilder()
+            isMutation -> response.newBuilder()
                 .removeHeader(HEADER_PRAGMA)
                 .removeHeader(HEADER_CACHE_CONTROL)
                 .header(HEADER_CACHE_CONTROL, "no-store")

@@ -12,6 +12,9 @@ package dev.logickoder.retrostash.okhttp
  * @property maxAgeMs TTL in milliseconds for persisted entries. `0` disables persistence.
  * @property bindings Pre-extracted placeholder values.
  * @property invalidateTemplates Templates to clear on a `2xx` mutation response.
+ * @property tagTemplates Tag templates to resolve and persist with the cached entry (query side).
+ * @property invalidateTagTemplates Tag templates to resolve and clear on a `2xx` mutation
+ * response (mutation side, parallel to [invalidateTemplates]).
  */
 data class OkHttpRetrostashMetadata(
     val scopeName: String,
@@ -19,4 +22,6 @@ data class OkHttpRetrostashMetadata(
     val maxAgeMs: Long = 0L,
     val bindings: Map<String, String> = emptyMap(),
     val invalidateTemplates: List<String> = emptyList(),
+    val tagTemplates: List<String> = emptyList(),
+    val invalidateTagTemplates: List<String> = emptyList(),
 )

@@ -2,6 +2,7 @@ package dev.logickoder.retrostash.okhttp
 
 import android.content.Context
 import dev.logickoder.retrostash.core.RetrostashStore
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -51,7 +52,12 @@ class AndroidRetrostashStore(
         return@synchronized file.readBytes()
     }
 
-    override suspend fun put(key: String, payload: ByteArray, maxAgeMs: Long) = synchronized(lock) {
+    override suspend fun put(
+        key: String,
+        payload: ByteArray,
+        maxAgeMs: Long,
+        tags: Set<String>,
+    ) = synchronized(lock) {
         if (key.isBlank()) return@synchronized
         val fileName = sha256(key) + ".bin"
         val file = File(cacheDir, fileName)
@@ -73,6 +79,7 @@ class AndroidRetrostashStore(
             createdAt = createdAt,
             lastAccess = createdAt,
             expiresAt = createdAt + ttl,
+            tags = tags,
         )
         index[key] = entry
         totalBytes += entry.size
@@ -85,6 +92,18 @@ class AndroidRetrostashStore(
     override suspend fun invalidate(template: String) = synchronized(lock) {
         if (template.isBlank()) return@synchronized
         val keys = index.keys.filter { key -> key == template || key.contains("|$template|") }
+        keys.forEach { key ->
+            index[key]?.let { removeLocked(key, it) }
+        }
+        persistLocked()
+    }
+
+    override suspend fun invalidateTag(tag: String) = synchronized(lock) {
+        if (tag.isBlank()) return@synchronized
+        val keys = index.entries
+            .filter { tag in it.value.tags }
+            .map { it.key }
+        if (keys.isEmpty()) return@synchronized
         keys.forEach { key ->
             index[key]?.let { removeLocked(key, it) }
         }
@@ -114,13 +133,16 @@ class AndroidRetrostashStore(
                 val size = obj.optLong("s", 0L)
                 val createdAt = obj.optLong("ca", 0L)
                 val lastAccess = obj.optLong("la", createdAt)
+                val tags = obj.optJSONArray("t")?.let { array ->
+                    buildSet { for (i in 0 until array.length()) add(array.optString(i)) }
+                }.orEmpty()
                 if (fileName.isBlank() || expiresAt <= now) {
                     if (fileName.isNotBlank()) File(cacheDir, fileName).delete()
                     return@forEach
                 }
                 val file = File(cacheDir, fileName)
                 if (!file.exists()) return@forEach
-                val entry = Entry(fileName, size, createdAt, lastAccess, expiresAt)
+                val entry = Entry(fileName, size, createdAt, lastAccess, expiresAt, tags)
                 index[key] = entry
                 totalBytes += size
             }
@@ -164,6 +186,9 @@ class AndroidRetrostashStore(
                 put("ca", entry.createdAt)
                 put("la", entry.lastAccess)
                 put("ea", entry.expiresAt)
+                if (entry.tags.isNotEmpty()) {
+                    put("t", JSONArray().apply { entry.tags.forEach(::put) })
+                }
             })
         }
         prefs.edit().putString(INDEX_KEY, root.toString()).apply()
@@ -182,6 +207,7 @@ class AndroidRetrostashStore(
         val createdAt: Long,
         var lastAccess: Long,
         val expiresAt: Long,
+        val tags: Set<String> = emptySet(),
     )
 
     companion object {

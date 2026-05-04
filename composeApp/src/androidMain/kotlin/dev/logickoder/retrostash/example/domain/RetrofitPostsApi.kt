@@ -14,12 +14,12 @@ import retrofit2.http.Streaming
 
 interface RetrofitPostsApi {
 
-    @CacheQuery("posts/{id}", maxAgeSeconds = 60)
+    @CacheQuery("posts/{id}", maxAgeSeconds = 60, tags = ["post:{id}"])
     @GET("posts/{id}")
     @Streaming
     suspend fun getPost(@Path("id") id: Int): Response<ResponseBody>
 
-    @CacheMutate(invalidate = ["posts/{id}"])
+    @CacheMutate(invalidate = ["posts/{id}"], invalidateTags = ["post:{id}"])
     @PUT("posts/{id}")
     @Streaming
     suspend fun updatePost(@Path("id") id: Int, @Body body: RequestBody): Response<ResponseBody>

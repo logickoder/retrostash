@@ -51,8 +51,8 @@ resolution works with plain Kotlin objects, Maps, Arrays, JSON bytes — no `Gso
 ## Public API
 
 **Primary surface:**
-- `@CacheQuery(key = "...")`
-- `@CacheMutate(invalidate = ["..."])`
+- `@CacheQuery(key = "...", tags = [...])`
+- `@CacheMutate(invalidate = [...], invalidateTags = [...])`
 - `RetrostashStore`, `InMemoryRetrostashStore`, `RetrostashEngine` (core)
 - `RetrostashPlugin`, `retrostashQuery`, `retrostashMutate` (ktor)
 - `RetrostashOkHttpBridge`, `RetrostashOkHttpAndroid` (okhttp)
@@ -195,6 +195,57 @@ bridge.invalidateQuery(
     bindings = mapOf("id" to "42", "tenant" to "acme"),
 )
 ```
+
+## Tags: cross-API invalidation
+
+A single domain object (an article, a user, a workspace) often fans out across unrelated APIs that
+each chose their own identifier shape. Tags let those APIs share a logical group without forcing
+the consumer to know every key template.
+
+Declare a tag on each `@CacheQuery`. Templates use the same `{placeholder}` syntax as the key and
+resolve from the same bindings / body:
+
+```kotlin
+@CacheQuery(key = "article:{guid}", tags = ["article:{guid}"])
+@GET("article")
+suspend fun getArticle(@Query("guid") guid: String): Response<String>
+
+@CacheQuery(key = "like_status:{hostName}:{contentUri}", tags = ["article:{contentUri}"])
+@POST("get_like_data")
+suspend fun getLikeStatus(@Body request: LikeRequest): Response<List<LikeResponse>>
+
+@CacheQuery(key = "email_alert:{conceptId}", tags = ["article:{conceptId}"])
+@GET("checksubscription")
+suspend fun getAlertStatus(@Query("conceptId") id: String): Response<EmailAlertResponse>
+```
+
+Refresh the article from one place — pass every identifier the article carries:
+
+```kotlin
+class ArticleRepository(private val bridge: RetrostashOkHttpBridge) {
+    fun invalidateArticle(article: Article) {
+        bridge.invalidateTags(
+            "article:${article.guid}",
+            "article:${article.conceptId}",
+            "article:${article.contentUri}",
+        )
+    }
+}
+```
+
+Adding a new article-related API later is a one-line annotation change — the refresh call site
+stays the same.
+
+A mutation can also clear by tag declaratively:
+
+```kotlin
+@CacheMutate(invalidateTags = ["article:{conceptId}"])
+@POST("submit_comment")
+suspend fun submitComment(@Body req: CommentRequest): Response<CommentResponse>
+```
+
+Ktor users have the same surface: `tags` on `retrostashQuery`, `invalidateTags` on
+`retrostashMutate`, and `runtime.invalidateTags(listOf(...))` for imperative refresh.
 
 ## Migrating from 0.0.4
 

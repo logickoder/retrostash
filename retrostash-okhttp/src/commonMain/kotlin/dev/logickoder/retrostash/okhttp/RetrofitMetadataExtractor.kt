@@ -25,6 +25,8 @@ internal object RetrofitMetadataExtractor {
             maxAgeMs = ((queryAnn?.maxAgeSeconds ?: 0L).coerceAtLeast(0L) * 1000L),
             bindings = bindings,
             invalidateTemplates = resolveInvalidateTemplates(mutateAnn),
+            tagTemplates = queryAnn?.tags?.toList().orEmpty(),
+            invalidateTagTemplates = mutateAnn?.invalidateTags?.toList().orEmpty(),
         )
     }
 

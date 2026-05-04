@@ -23,8 +23,16 @@ interface RetrostashStore {
     /**
      * Stores [payload] under [key] with optional [maxAgeMs] TTL. `0` or negative means no
      * explicit expiry — the entry lives until invalidated, cleared, or evicted.
+     *
+     * [tags] are persisted alongside the entry and used by [invalidateTag] to clear groups of
+     * entries that share a logical identifier (typically resolved from `@CacheQuery.tags`).
      */
-    suspend fun put(key: String, payload: ByteArray, maxAgeMs: Long)
+    suspend fun put(
+        key: String,
+        payload: ByteArray,
+        maxAgeMs: Long,
+        tags: Set<String> = emptySet(),
+    )
 
     /**
      * Removes any entries whose key contains `|`[template]`|` as a substring, plus the literal
@@ -32,6 +40,12 @@ interface RetrostashStore {
      * (e.g. `users/42`, not `users/{id}`). Callers are responsible for the substitution.
      */
     suspend fun invalidate(template: String)
+
+    /**
+     * Removes every entry whose tag set contains [tag]. [tag] must be the **resolved** tag value
+     * (e.g. `"article:concept123"`). No-op for blank input or when no entries carry that tag.
+     */
+    suspend fun invalidateTag(tag: String)
 
     /** Drops every entry. Used by external "clear cache" actions. */
     suspend fun clear()

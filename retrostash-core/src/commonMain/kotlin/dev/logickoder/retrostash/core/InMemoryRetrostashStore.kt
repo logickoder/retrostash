@@ -30,11 +30,17 @@ class InMemoryRetrostashStore : RetrostashStore {
         entry.payload
     }
 
-    override suspend fun put(key: String, payload: ByteArray, maxAgeMs: Long) = mutex.withLock {
+    override suspend fun put(
+        key: String,
+        payload: ByteArray,
+        maxAgeMs: Long,
+        tags: Set<String>,
+    ) = mutex.withLock {
         entries[key] = Entry(
             payload = payload,
             createdAt = TimeSource.Monotonic.markNow(),
             maxAgeMs = maxAgeMs.coerceAtLeast(0L),
+            tags = tags,
         )
     }
 
@@ -47,6 +53,14 @@ class InMemoryRetrostashStore : RetrostashStore {
         keysToRemove.forEach(entries::remove)
     }
 
+    override suspend fun invalidateTag(tag: String) = mutex.withLock {
+        if (tag.isBlank()) return@withLock
+        val keysToRemove = entries.entries
+            .filter { tag in it.value.tags }
+            .map { it.key }
+        keysToRemove.forEach(entries::remove)
+    }
+
     override suspend fun clear() = mutex.withLock {
         entries.clear()
     }
@@ -55,6 +69,7 @@ class InMemoryRetrostashStore : RetrostashStore {
         val payload: ByteArray,
         val createdAt: TimeSource.Monotonic.ValueTimeMark,
         val maxAgeMs: Long,
+        val tags: Set<String>,
     ) {
         fun isExpired(): Boolean {
             if (maxAgeMs <= 0L) return false

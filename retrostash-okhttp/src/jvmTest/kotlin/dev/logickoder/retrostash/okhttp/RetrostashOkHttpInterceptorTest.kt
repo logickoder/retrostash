@@ -1,7 +1,9 @@
 package dev.logickoder.retrostash.okhttp
 
 import dev.logickoder.retrostash.core.InMemoryRetrostashStore
+import dev.logickoder.retrostash.core.QueryMetadata
 import dev.logickoder.retrostash.core.RetrostashEngine
+import kotlinx.coroutines.runBlocking
 import okhttp3.Call
 import okhttp3.Connection
 import okhttp3.Interceptor
@@ -13,6 +15,8 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
 import okio.BufferedSink
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.concurrent.TimeUnit
@@ -125,6 +129,112 @@ class RetrostashOkHttpInterceptorTest {
         assertEquals("retrostash-cache", replay.header("X-Retrostash-Source"))
         assertTrue(replay.body.contentType().toString().startsWith("text/plain"))
         assertEquals("seed", replay.body.string())
+    }
+
+    @Test
+    fun tagged_query_response_is_invalidated_via_engine() {
+        val store = InMemoryRetrostashStore()
+        val engine = RetrostashEngine(store)
+        val interceptor = RetrostashOkHttpInterceptor(
+            engine = engine,
+            config = RetrostashOkHttpConfig(enableGetCaching = false),
+        )
+
+        val request = Request.Builder()
+            .url("https://example.com/article/abc")
+            .retrostashQuery(
+                scopeName = "ArticleApi",
+                template = "article/{guid}",
+                bindings = mapOf("guid" to "abc"),
+                maxAgeMs = 60_000L,
+                tags = listOf("article:{guid}"),
+            )
+            .build()
+
+        val seedChain = FakeChain(request) { req ->
+            Response.Builder()
+                .request(req)
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body("{}".toResponseBody("application/json".toMediaTypeOrNull()))
+                .build()
+        }
+        interceptor.intercept(seedChain)
+
+        val cachedMetadata = QueryMetadata(
+            scopeName = "ArticleApi",
+            template = "article/{guid}",
+            bindings = mapOf("guid" to "abc"),
+            tagTemplates = listOf("article:{guid}"),
+        )
+        runBlocking {
+            assertNotNull(engine.resolveFromCache(cachedMetadata))
+            engine.invalidateTags(listOf("article:abc"))
+            assertNull(engine.resolveFromCache(cachedMetadata))
+        }
+    }
+
+    @Test
+    fun mutation_with_invalidate_tags_clears_tagged_entries_on_2xx() {
+        val store = InMemoryRetrostashStore()
+        val engine = RetrostashEngine(store)
+        val interceptor = RetrostashOkHttpInterceptor(
+            engine = engine,
+            config = RetrostashOkHttpConfig(enableGetCaching = false),
+        )
+
+        val seed = Request.Builder()
+            .url("https://example.com/article/abc")
+            .retrostashQuery(
+                scopeName = "ArticleApi",
+                template = "article/{guid}",
+                bindings = mapOf("guid" to "abc"),
+                maxAgeMs = 60_000L,
+                tags = listOf("article:{guid}"),
+            )
+            .build()
+        interceptor.intercept(FakeChain(seed) { req ->
+            Response.Builder()
+                .request(req)
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body("seed".toResponseBody("text/plain".toMediaTypeOrNull()))
+                .build()
+        })
+
+        val mutation = Request.Builder()
+            .url("https://example.com/article/abc/comments")
+            .post(EmptyRequestBody)
+            .retrostashMutate(
+                scopeName = "CommentApi",
+                bindings = mapOf("conceptId" to "abc"),
+                invalidateTags = listOf("article:{conceptId}"),
+            )
+            .build()
+
+        val mutationResponse = interceptor.intercept(FakeChain(mutation) { req ->
+            Response.Builder()
+                .request(req)
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body("{}".toResponseBody("application/json".toMediaTypeOrNull()))
+                .build()
+        })
+
+        assertEquals("no-store", mutationResponse.header("Cache-Control"))
+        runBlocking {
+            val cached = engine.resolveFromCache(
+                QueryMetadata(
+                    scopeName = "ArticleApi",
+                    template = "article/{guid}",
+                    bindings = mapOf("guid" to "abc"),
+                )
+            )
+            assertNull(cached)
+        }
     }
 
     private class FakeChain(

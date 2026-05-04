@@ -39,6 +39,7 @@ class RetrostashKtorRuntime(
                 template = template,
                 bindings = metadata.bindings,
                 bodyBytes = metadata.bodyBytes,
+                tagTemplates = metadata.tagTemplates,
             ),
             payload = payload,
             maxAgeMs = metadata.maxAgeMs,
@@ -46,13 +47,39 @@ class RetrostashKtorRuntime(
     }
 
     suspend fun invalidate(metadata: RetrostashKtorMetadata) {
-        if (metadata.invalidateTemplates.isEmpty()) return
-        val resolved = metadata.invalidateTemplates.mapNotNull { template ->
-            resolveTemplate(template, metadata.bindings, metadata.bodyBytes)
+        if (metadata.invalidateTemplates.isNotEmpty()) {
+            val resolved = metadata.invalidateTemplates.mapNotNull { template ->
+                resolveTemplate(template, metadata.bindings, metadata.bodyBytes)
+            }
+            if (resolved.isNotEmpty()) {
+                engine.invalidateTemplates(resolved)
+            }
         }
-        if (resolved.isNotEmpty()) {
-            engine.invalidateTemplates(resolved)
+        if (metadata.invalidateTagTemplates.isNotEmpty()) {
+            val resolved = metadata.invalidateTagTemplates.mapNotNull { template ->
+                resolveTemplate(template, metadata.bindings, metadata.bodyBytes)
+            }
+            if (resolved.isNotEmpty()) {
+                engine.invalidateTags(resolved)
+            }
         }
+    }
+
+    /**
+     * Imperative tag invalidation — clears every entry whose tag set contains [tag]. The tag
+     * must be the **resolved** value (e.g. `"article:concept123"`), not a template.
+     */
+    suspend fun invalidateTag(tag: String) {
+        if (tag.isBlank()) return
+        engine.invalidateTags(listOf(tag))
+    }
+
+    /**
+     * Bulk version of [invalidateTag]. Tag values must be **resolved**. Blank values skipped.
+     */
+    suspend fun invalidateTags(tags: List<String>) {
+        if (tags.isEmpty()) return
+        engine.invalidateTags(tags)
     }
 
     private fun resolveTemplate(

@@ -21,51 +21,68 @@ class CoreKeyResolver {
     fun resolve(metadata: QueryMetadata): String? {
         if (metadata.template.isBlank()) return null
 
-        val placeholders = PLACEHOLDER_REGEX.findAll(metadata.template)
-            .map { it.groupValues[1] }
-            .distinct()
-            .toList()
+        val placeholders = placeholdersOf(metadata.template)
+        val resolvedBindings = resolveBindings(placeholders, metadata)
+            ?: return null
 
-        if (placeholders.isEmpty()) {
-            return buildKey(metadata.scopeName, metadata.template, emptyMap())
+        return buildKey(metadata.scopeName, metadata.template, placeholders, resolvedBindings)
+    }
+
+    /**
+     * Resolves [QueryMetadata.tagTemplates] against the same bindings / body sources used by
+     * [resolve]. Templates that cannot be fully resolved are dropped silently.
+     */
+    fun resolveTags(metadata: QueryMetadata): List<String> {
+        if (metadata.tagTemplates.isEmpty()) return emptyList()
+        return metadata.tagTemplates.mapNotNull { template ->
+            resolveTemplate(template, metadata)
         }
+    }
 
-        val resolvedBindings = metadata.bindings.toMutableMap()
-        val unresolved = placeholders.filterNot { resolvedBindings.containsKey(it) }
-        if (unresolved.isNotEmpty()) {
-            unresolved.forEach { placeholder ->
-                val value = metadata.bodyBytes?.let {
-                    Utf8JsonLookup.findFirstPrimitiveByKey(
-                        it,
-                        placeholder
-                    )
-                }
-                if (value != null) {
-                    resolvedBindings[placeholder] = value
-                }
-            }
+    private fun resolveTemplate(template: String, metadata: QueryMetadata): String? {
+        if (template.isBlank()) return null
+        val placeholders = placeholdersOf(template)
+        if (placeholders.isEmpty()) return template
+
+        val resolved = resolveBindings(placeholders, metadata) ?: return null
+        return PLACEHOLDER_REGEX.replace(template) { resolved[it.groupValues[1]].orEmpty() }
+    }
+
+    private fun resolveBindings(
+        placeholders: List<String>,
+        metadata: QueryMetadata,
+    ): Map<String, String>? {
+        if (placeholders.isEmpty()) return emptyMap()
+        val working = metadata.bindings.toMutableMap()
+        placeholders.forEach { placeholder ->
+            if (working.containsKey(placeholder)) return@forEach
+            val value = metadata.bodyBytes?.let {
+                Utf8JsonLookup.findFirstPrimitiveByKey(it, placeholder)
+            } ?: return@forEach
+            working[placeholder] = value
         }
-
-        if (!placeholders.all { resolvedBindings.containsKey(it) }) return null
-        return buildKey(metadata.scopeName, metadata.template, resolvedBindings)
+        if (!placeholders.all { working.containsKey(it) }) return null
+        return working
     }
 
     private fun buildKey(
         scopeName: String,
         template: String,
-        bindings: Map<String, String>
+        placeholders: List<String>,
+        bindings: Map<String, String>,
     ): String {
-        val placeholders = PLACEHOLDER_REGEX.findAll(template)
-            .map { it.groupValues[1] }
-            .distinct()
-            .toList()
-
         val resolved = PLACEHOLDER_REGEX.replace(template) { bindings[it.groupValues[1]].orEmpty() }
         val fingerprint = placeholders.sorted()
             .joinToString("|") { "$it=${bindings[it].orEmpty()}" }
 
         return "$scopeName|$resolved|${stableHash64(fingerprint)}"
     }
+
+    private fun placeholdersOf(template: String): List<String> =
+        PLACEHOLDER_REGEX.findAll(template)
+            .map { it.groupValues[1] }
+            .distinct()
+            .toList()
 
     private fun stableHash64(value: String): String {
         var hash = -0x340d631b8c4678f3L

@@ -19,6 +19,10 @@ import io.ktor.util.AttributeKey
  * [bindings] (matched via JSON field lookup).
  * @property invalidateTemplates Templates to clear after a successful mutation. Resolved against
  * [bindings] / [bodyBytes] before being passed to the store.
+ * @property tagTemplates Tag templates persisted with the cached entry on the query side.
+ * Resolved against [bindings] / [bodyBytes] at write time.
+ * @property invalidateTagTemplates Tag templates resolved on mutation success and matched
+ * against per-entry tag sets in the store.
  */
 data class RetrostashKtorMetadata(
     val scopeName: String,
@@ -27,6 +31,8 @@ data class RetrostashKtorMetadata(
     val bindings: Map<String, String> = emptyMap(),
     val bodyBytes: ByteArray? = null,
     val invalidateTemplates: List<String> = emptyList(),
+    val tagTemplates: List<String> = emptyList(),
+    val invalidateTagTemplates: List<String> = emptyList(),
 )
 
 /** Attribute key used to attach [RetrostashKtorMetadata] to a Ktor request. */
@@ -63,6 +69,7 @@ fun HttpRequestBuilder.retrostash(metadata: RetrostashKtorMetadata): HttpRequest
  * @param bindings Placeholder values from the call site (path / query parameters).
  * @param bodyBytes Optional request body for placeholder fallback resolution.
  * @param maxAgeMs TTL for the cached entry. `0` disables persistence (lookup-only).
+ * @param tags Tag templates to persist with the entry. Resolved from [bindings] / [bodyBytes].
  */
 fun HttpRequestBuilder.retrostashQuery(
     scopeName: String,
@@ -70,6 +77,7 @@ fun HttpRequestBuilder.retrostashQuery(
     bindings: Map<String, String> = emptyMap(),
     bodyBytes: ByteArray? = null,
     maxAgeMs: Long = 0L,
+    tags: List<String> = emptyList(),
 ): HttpRequestBuilder {
     return retrostash(
         RetrostashKtorMetadata(
@@ -78,6 +86,7 @@ fun HttpRequestBuilder.retrostashQuery(
             maxAgeMs = maxAgeMs,
             bindings = bindings,
             bodyBytes = bodyBytes,
+            tagTemplates = tags,
         )
     )
 }
@@ -92,12 +101,15 @@ fun HttpRequestBuilder.retrostashQuery(
  * (e.g. `"users/{id}"`) — the plugin substitutes from [bindings] before invalidating.
  * @param bindings Placeholder values from the call site.
  * @param bodyBytes Optional request body for placeholder fallback resolution.
+ * @param invalidateTags Tag templates to resolve and clear on a 2xx response (parallel to
+ * [invalidateTemplates] but matched against per-entry tag sets).
  */
 fun HttpRequestBuilder.retrostashMutate(
     scopeName: String,
-    invalidateTemplates: List<String>,
+    invalidateTemplates: List<String> = emptyList(),
     bindings: Map<String, String> = emptyMap(),
     bodyBytes: ByteArray? = null,
+    invalidateTags: List<String> = emptyList(),
 ): HttpRequestBuilder {
     return retrostash(
         RetrostashKtorMetadata(
@@ -105,6 +117,7 @@ fun HttpRequestBuilder.retrostashMutate(
             bindings = bindings,
             bodyBytes = bodyBytes,
             invalidateTemplates = invalidateTemplates,
+            invalidateTagTemplates = invalidateTags,
         )
     )
 }
@@ -125,6 +138,9 @@ private fun mergeRetrostashMetadata(
     }
     val bodyBytes = incoming.bodyBytes ?: current.bodyBytes
     val invalidations = (current.invalidateTemplates + incoming.invalidateTemplates).distinct()
+    val tagTemplates = (current.tagTemplates + incoming.tagTemplates).distinct()
+    val invalidateTagTemplates =
+        (current.invalidateTagTemplates + incoming.invalidateTagTemplates).distinct()
 
     return RetrostashKtorMetadata(
         scopeName = scope,
@@ -133,5 +149,7 @@ private fun mergeRetrostashMetadata(
         bindings = bindings,
         bodyBytes = bodyBytes,
         invalidateTemplates = invalidations,
+        tagTemplates = tagTemplates,
+        invalidateTagTemplates = invalidateTagTemplates,
     )
 }

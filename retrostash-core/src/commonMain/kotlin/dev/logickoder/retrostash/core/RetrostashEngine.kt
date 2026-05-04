@@ -7,7 +7,7 @@ package dev.logickoder.retrostash.core
  *
  * Adapters (`RetrostashOkHttpInterceptor`, `RetrostashKtorRuntime`) construct one engine per
  * client and dispatch transport metadata into [resolveFromCache], [persistQueryResult],
- * [invalidateTemplates], and [clearAll].
+ * [invalidateTemplates], [invalidateTags], and [clearAll].
  *
  * @property store Backing store for cached payloads.
  * @property keyResolver Builds the persistence key from [QueryMetadata]. Default uses the
@@ -32,13 +32,15 @@ class RetrostashEngine(
     }
 
     /**
-     * Persists [payload] for the resolved [metadata] key with TTL [maxAgeMs]. No-op if the key
-     * cannot be resolved or the store call times out.
+     * Persists [payload] for the resolved [metadata] key with TTL [maxAgeMs]. Tag templates on
+     * [metadata] are resolved against the same bindings / body and persisted alongside the entry.
+     * No-op if the key cannot be resolved or the store call times out.
      */
     suspend fun persistQueryResult(metadata: QueryMetadata, payload: ByteArray, maxAgeMs: Long) {
         val key = keyResolver.resolve(metadata) ?: return
+        val tags = keyResolver.resolveTags(metadata).toSet()
         withStoreTimeoutOrNull(timeoutMs) {
-            store.put(key, payload, maxAgeMs)
+            store.put(key, payload, maxAgeMs, tags)
         }
     }
 
@@ -55,6 +57,20 @@ class RetrostashEngine(
             .forEach { template ->
                 withStoreTimeoutOrNull(timeoutMs) {
                     store.invalidate(template)
+                }
+            }
+    }
+
+    /**
+     * Invalidates every entry whose tag set contains any of [tags]. [tags] must be the
+     * **resolved** values (e.g. `"article:concept123"`, not `"article:{conceptId}"`).
+     */
+    suspend fun invalidateTags(tags: List<String>) {
+        tags
+            .filter { it.isNotBlank() }
+            .forEach { tag ->
+                withStoreTimeoutOrNull(timeoutMs) {
+                    store.invalidateTag(tag)
                 }
             }
     }

@@ -91,6 +91,43 @@ class RetrostashOkHttpBridge(
         return resolved
     }
 
+    /**
+     * Removes every cached entry whose tag set contains [tag]. [tag] must be the **resolved**
+     * value (e.g. `"article:concept123"`), not a template. Returns `true` if a non-blank tag
+     * was scheduled for invalidation.
+     */
+    fun invalidateTag(tag: String): Boolean {
+        if (tag.isBlank()) return false
+        runBlocking {
+            engine.invalidateTags(listOf(tag))
+        }
+        return true
+    }
+
+    /**
+     * Bulk version of [invalidateTag]. Blank values are skipped. Useful when a domain object
+     * (e.g. an article) carries multiple identifiers that map to the same logical tag namespace
+     * across unrelated APIs:
+     *
+     * ```kotlin
+     * bridge.invalidateTags(
+     *     "article:${article.guid}",
+     *     "article:${article.conceptId}",
+     *     "article:${article.contentUri}",
+     * )
+     * ```
+     *
+     * Returns `true` if at least one non-blank tag was scheduled.
+     */
+    fun invalidateTags(vararg tags: String): Boolean {
+        val cleaned = tags.filter { it.isNotBlank() }
+        if (cleaned.isEmpty()) return false
+        runBlocking {
+            engine.invalidateTags(cleaned)
+        }
+        return true
+    }
+
     companion object {
         /**
          * Recovers the bridge previously installed onto [client], or `null` if the client was

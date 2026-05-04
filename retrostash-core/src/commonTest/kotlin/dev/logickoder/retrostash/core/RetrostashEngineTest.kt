@@ -24,6 +24,45 @@ class RetrostashEngineTest {
     }
 
     @Test
+    fun persisted_tags_drive_invalidate_tags() {
+        val store = InMemoryRetrostashStore()
+        val engine = RetrostashEngine(store = store)
+        val metadata = QueryMetadata(
+            scopeName = "ArticleApi",
+            template = "native_article/{guid}",
+            bindings = mapOf("guid" to "abc"),
+            tagTemplates = listOf("article:{guid}"),
+        )
+
+        kotlinx.coroutines.test.runTest {
+            engine.persistQueryResult(metadata, "payload".encodeToByteArray(), maxAgeMs = 60_000)
+            assertContentEquals("payload".encodeToByteArray(), engine.resolveFromCache(metadata))
+
+            engine.invalidateTags(listOf("article:abc"))
+
+            assertNull(engine.resolveFromCache(metadata))
+        }
+    }
+
+    @Test
+    fun invalidate_tags_skips_blank_entries() {
+        val store = InMemoryRetrostashStore()
+        val engine = RetrostashEngine(store = store)
+        val metadata = QueryMetadata(
+            scopeName = "ArticleApi",
+            template = "native_article/{guid}",
+            bindings = mapOf("guid" to "abc"),
+            tagTemplates = listOf("article:{guid}"),
+        )
+
+        kotlinx.coroutines.test.runTest {
+            engine.persistQueryResult(metadata, "payload".encodeToByteArray(), maxAgeMs = 60_000)
+            engine.invalidateTags(listOf("", "   "))
+            assertContentEquals("payload".encodeToByteArray(), engine.resolveFromCache(metadata))
+        }
+    }
+
+    @Test
     fun invalidates_matching_templates() {
         val store = InMemoryRetrostashStore()
         val engine = RetrostashEngine(store = store)

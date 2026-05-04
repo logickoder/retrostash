@@ -8,6 +8,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlin.test.Test
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class InMemoryRetrostashStoreTest {
@@ -35,6 +37,31 @@ class InMemoryRetrostashStoreTest {
 
         store.clear()
         assertTrue(true, "completed without ConcurrentModificationException")
+    }
+
+    @Test
+    fun invalidate_tag_clears_only_matching_entries() = runTest {
+        val store = InMemoryRetrostashStore()
+        store.put("article-key", "article".encodeToByteArray(), 60_000L, tags = setOf("article:7"))
+        store.put("like-key", "like".encodeToByteArray(), 60_000L, tags = setOf("article:7", "like:42"))
+        store.put("untagged-key", "other".encodeToByteArray(), 60_000L)
+
+        store.invalidateTag("article:7")
+
+        assertNull(store.get("article-key"))
+        assertNull(store.get("like-key"))
+        assertNotNull(store.get("untagged-key"))
+    }
+
+    @Test
+    fun invalidate_blank_tag_is_noop() = runTest {
+        val store = InMemoryRetrostashStore()
+        store.put("k", "v".encodeToByteArray(), 60_000L, tags = setOf("article:7"))
+
+        store.invalidateTag("")
+        store.invalidateTag("   ")
+
+        assertNotNull(store.get("k"))
     }
 
     @Test

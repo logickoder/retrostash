@@ -54,6 +54,51 @@ class CoreKeyResolverTest {
     }
 
     @Test
+    fun resolves_tag_templates_against_bindings_and_body() {
+        val resolver = CoreKeyResolver()
+        val tags = resolver.resolveTags(
+            QueryMetadata(
+                scopeName = "ArticleApi",
+                template = "native_article/{guid}",
+                bindings = mapOf("guid" to "abc"),
+                bodyBytes = "{\"conceptId\":\"concept-7\"}".encodeToByteArray(),
+                tagTemplates = listOf("article:{guid}", "article:{conceptId}"),
+            )
+        )
+
+        assertEquals(listOf("article:abc", "article:concept-7"), tags)
+    }
+
+    @Test
+    fun drops_tag_templates_with_unresolved_placeholders() {
+        val resolver = CoreKeyResolver()
+        val tags = resolver.resolveTags(
+            QueryMetadata(
+                scopeName = "ArticleApi",
+                template = "native_article/{guid}",
+                bindings = mapOf("guid" to "abc"),
+                tagTemplates = listOf("article:{guid}", "article:{missing}"),
+            )
+        )
+
+        assertEquals(listOf("article:abc"), tags)
+    }
+
+    @Test
+    fun returns_empty_when_no_tag_templates() {
+        val resolver = CoreKeyResolver()
+        val tags = resolver.resolveTags(
+            QueryMetadata(
+                scopeName = "ArticleApi",
+                template = "native_article/{guid}",
+                bindings = mapOf("guid" to "abc"),
+            )
+        )
+
+        assertEquals(emptyList(), tags)
+    }
+
+    @Test
     fun reads_nested_json_value() {
         val value = Utf8JsonLookup.findFirstPrimitiveByKey(
             payload = "{\"meta\":{\"user\":{\"id\":\"abc\"}}}".encodeToByteArray(),
