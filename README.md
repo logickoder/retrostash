@@ -150,9 +150,9 @@ val okHttpClient = okHttpBuilder.build()
 val sameBridge = RetrostashOkHttpBridge.from(okHttpClient)
 ```
 
-> **Heads up — do not also pass `cache(...)` to the `OkHttpClient.Builder` unless you've read
-> [Caching strategy](#caching-strategy).** Layering OkHttp's HTTP disk cache on top of Retrostash
-> creates a stale-data window after invalidation.
+> **One cache layer.** Don't pass `cache(...)` to the `OkHttpClient.Builder` unless you have a
+> specific reason — Retrostash's annotation-driven cache and OkHttp's HTTP disk cache do not
+> share an invalidation path. See [Caching strategy](#caching-strategy).
 
 JVM (non-Android) consumers construct `RetrostashOkHttpBridge` directly with their own
 `RetrostashStore` impl — no `Context` needed.
@@ -358,85 +358,52 @@ bridge.cache.updateQuery(
 
 ## Caching strategy
 
-Applies to the OkHttp / Retrofit adapter. Ktor users can skip this section — `HttpClient` does
-not ship a built-in HTTP disk cache, so the layering trap below does not apply.
+Applies to the OkHttp / Retrofit adapter. Ktor users can skip — `HttpClient` ships no built-in
+HTTP disk cache, so layering doesn't apply there.
 
-### Two cache layers
+### One cache layer, by design
+
+Retrostash owns its own annotation-driven cache (`@CacheQuery`, `@CacheMutate`, tags). Treat
+Retrostash as **the** cache. Don't pass `cache(...)` to your `OkHttpClient.Builder` unless you
+have a specific reason and accept the trade-off below.
+
+```kotlin
+// Recommended
+val okHttpBuilder = OkHttpClient.Builder()  // no .cache(...)
+RetrostashOkHttpAndroid.install(builder = okHttpBuilder, context = appContext)
+```
+
+### If you also pass `cache(...)` to your builder
+
+OkHttp's HTTP disk cache obeys origin `Cache-Control` headers — separate machinery from
+Retrostash's store. Retrostash invalidation (`@CacheMutate`, `bridge.cache.invalidateTag`,
+`bridge.cache.invalidateQuery`, `bridge.cache.invalidateQueryKey`) does **not** evict OkHttp
+HTTP cache entries. Treat OkHttp's HTTP cache like a CDN you don't control — it serves until
+its origin TTL expires. After Retrostash invalidates, the next GET can still hit OkHttp's HTTP
+cache; you'll see `X-Retrostash-Source: okhttp-cache` on the response.
+
+If you want OkHttp's HTTP cache for `If-None-Match` / `304 Not Modified` revalidation on the
+cold path, that's a fine reason — just know:
+
+- Origin `Cache-Control` headers rule (Retrostash no longer rewrites them).
+- POST mutations are tagged `Cache-Control: no-store` so OkHttp doesn't cache mutation responses.
+- Retrostash invalidation = Retrostash store only. Plan around it.
 
 ```
 ┌─────────────────────────────┐
 │  Retrostash store           │  ← @CacheQuery / @CacheMutate / tags
-│  (annotation-driven)        │     Authoritative for invalidation.
+│  (annotation-driven)        │     Authoritative for Retrostash invalidation.
 └──────────────┬──────────────┘
                │ miss
 ┌──────────────▼──────────────┐
-│  OkHttp HTTP cache (Cache)  │  ← Cache-Control driven, opaque to
-│  (optional, header-driven)  │     Retrostash invalidation.
+│  OkHttp HTTP cache (Cache)  │  ← Origin-Cache-Control driven.
+│  (optional, header-driven)  │     Retrostash never touches it.
 └──────────────┬──────────────┘
                │ miss
 ┌──────────────▼──────────────┐
 │  Network                    │
 └─────────────────────────────┘
 ```
-
-### Why it matters
-
-Retrostash invalidation (`@CacheMutate`, `bridge.cache.invalidateTag`,
-`bridge.cache.invalidateQuery`, `bridge.cache.invalidateQueryKey`) clears the **Retrostash
-store only**. It does not evict entries from OkHttp's HTTP cache.
-
-If `RetrostashOkHttpConfig.enableGetCaching = true` (the default) **and** you set
-`OkHttpClient.Builder().cache(...)`, GETs end up in **both** caches:
-
-1. Retrostash interceptor (application interceptor) caches the response in Retrostash's store.
-2. The `Cache-Control: public, max-age=86400` rewrite makes OkHttp's HTTP cache hold it too.
-
-After an invalidation:
-
-1. Retrostash store entry: cleared ✓
-2. OkHttp HTTP cache entry: still there, up to 24h ✗
-3. Next GET → Retrostash store MISS → `chain.proceed` → OkHttp HTTP cache HIT → response with
-   `X-Retrostash-Source: okhttp-cache`.
-
-### What `enableGetCaching` actually does
-
-It rewrites outgoing GET response `Cache-Control` headers to
-`public, max-age=${getMaxAgeSeconds}` (default 24h). That has *no effect* on Retrostash's own
-store — Retrostash caches based on `@CacheQuery`, regardless of this flag. The flag is purely an
-OkHttp HTTP cache plumbing knob.
-
-### Two correct configurations
-
-**Single cache (recommended):** drop `OkHttpClient.cache(...)`. Retrostash is the only cache.
-Tag and mutation invalidation are authoritative. This matches the example above.
-
-```kotlin
-val okHttpBuilder = OkHttpClient.Builder() // no .cache(...)
-RetrostashOkHttpAndroid.install(builder = okHttpBuilder, context = appContext)
-```
-
-**Layered:** keep OkHttp's `Cache(...)` only if you specifically want OkHttp's
-`If-None-Match`/`304` revalidation flow on cold paths. Set `enableGetCaching = false` so
-Retrostash stops overriding origin `Cache-Control`, and accept that Retrostash invalidation does
-**not** evict OkHttp HTTP cache entries.
-
-```kotlin
-val cache = Cache(File(appContext.cacheDir, "http-cache"), 10L * 1024 * 1024)
-val okHttpBuilder = OkHttpClient.Builder().cache(cache)
-RetrostashOkHttpAndroid.install(
-    builder = okHttpBuilder,
-    context = appContext,
-    config = RetrostashOkHttpConfig(enableGetCaching = false),
-)
-```
-
-### Decision matrix
-
-| Use OkHttp `Cache(...)` ? | `enableGetCaching` | Result                                                                                  |
-|---------------------------|--------------------|-----------------------------------------------------------------------------------------|
-| No                        | any                | Single source of truth: Retrostash. Recommended.                                        |
-| Yes                       | `false`            | Layered, but origin `Cache-Control` rules. Stale GET window after invalidation.         |
-| Yes                       | `true`             | **Footgun.** Up to 24h stale GET window after invalidation. Avoid.                      |
 
 ## Tags: cross-API invalidation
 
@@ -533,19 +500,18 @@ Same shape for `runtime.cache.invalidateTag(s)` on Ktor. Full API in [Cache API]
 
 **Why am I still seeing `X-Retrostash-Source: okhttp-cache` after invalidating?**
 
-Your `OkHttpClient.Builder` has `cache(...)` set, and `RetrostashOkHttpConfig.enableGetCaching`
-is `true` (the default). Retrostash invalidation cleared the Retrostash store, but OkHttp's HTTP
-disk cache still has the entry. See [Caching strategy](#caching-strategy) — drop OkHttp's
-`Cache(...)` or set `enableGetCaching = false`.
+Your `OkHttpClient.Builder` has `cache(...)` set, and OkHttp's HTTP disk cache still has the
+entry — Retrostash invalidation only clears Retrostash's store. See
+[Caching strategy](#caching-strategy). Easiest fix: drop `cache(...)` from your builder and let
+Retrostash own caching.
 
 **Which TTL knob does what?**
 
 - `@CacheQuery(maxAgeSeconds = ...)` — TTL for that query in **Retrostash's** store.
 - `RetrostashOkHttpConfig.defaultMaxAgeMs` — fallback TTL for Retrostash's store when a
   `@CacheQuery` doesn't declare one.
-- `RetrostashOkHttpConfig.getMaxAgeSeconds` — TTL injected as `Cache-Control: max-age=...` for
-  **OkHttp's HTTP cache**, only when `enableGetCaching = true`. Has no effect on Retrostash's
-  store.
+- OkHttp's HTTP cache TTL (when configured separately) follows the origin server's
+  `Cache-Control` headers — Retrostash no longer rewrites them.
 
 **Where do I find the API docs?**
 

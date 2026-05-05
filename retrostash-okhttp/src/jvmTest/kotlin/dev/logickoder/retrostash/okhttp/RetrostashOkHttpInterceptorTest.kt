@@ -24,10 +24,10 @@ import java.util.concurrent.TimeUnit
 class RetrostashOkHttpInterceptorTest {
 
     @Test
-    fun rewrites_get_cache_control_and_marks_network_source() {
+    fun get_response_cache_control_is_passed_through_unchanged() {
         val interceptor = RetrostashOkHttpInterceptor(
             engine = RetrostashEngine(InMemoryRetrostashStore()),
-            config = RetrostashOkHttpConfig(getMaxAgeSeconds = 120L, enableGetCaching = true),
+            config = RetrostashOkHttpConfig(),
         )
 
         val request = Request.Builder().url("https://example.com/users").get().build()
@@ -37,13 +37,15 @@ class RetrostashOkHttpInterceptorTest {
                 .protocol(Protocol.HTTP_1_1)
                 .code(200)
                 .message("OK")
+                .addHeader("Cache-Control", "max-age=300")
                 .body("{}".toResponseBody("application/json".toMediaTypeOrNull()))
                 .build()
         }
 
         val response = interceptor.intercept(chain)
 
-        assertEquals("public, max-age=120", response.header("Cache-Control"))
+        // Origin Cache-Control survives — Retrostash no longer rewrites GET headers.
+        assertEquals("max-age=300", response.header("Cache-Control"))
         assertEquals("network", response.header("X-Retrostash-Source"))
     }
 
@@ -82,7 +84,7 @@ class RetrostashOkHttpInterceptorTest {
     fun cache_replay_preserves_status_message_headers_and_content_type() {
         val interceptor = RetrostashOkHttpInterceptor(
             engine = RetrostashEngine(InMemoryRetrostashStore()),
-            config = RetrostashOkHttpConfig(enableGetCaching = false),
+            config = RetrostashOkHttpConfig(),
         )
 
         val request = Request.Builder()
@@ -137,7 +139,7 @@ class RetrostashOkHttpInterceptorTest {
         val engine = RetrostashEngine(store)
         val interceptor = RetrostashOkHttpInterceptor(
             engine = engine,
-            config = RetrostashOkHttpConfig(enableGetCaching = false),
+            config = RetrostashOkHttpConfig(),
         )
 
         val request = Request.Builder()
@@ -181,7 +183,7 @@ class RetrostashOkHttpInterceptorTest {
         val engine = RetrostashEngine(store)
         val interceptor = RetrostashOkHttpInterceptor(
             engine = engine,
-            config = RetrostashOkHttpConfig(enableGetCaching = false),
+            config = RetrostashOkHttpConfig(),
         )
 
         val seed = Request.Builder()

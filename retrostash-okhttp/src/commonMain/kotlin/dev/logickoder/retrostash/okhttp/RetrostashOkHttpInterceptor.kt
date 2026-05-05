@@ -28,17 +28,17 @@ import retrofit2.Invocation
  * On a mutation: forwards the call to the network, then on `2xx` resolves
  * [OkHttpRetrostashMetadata.invalidateTemplates] against bindings and invalidates each.
  *
- * On any GET (when [RetrostashOkHttpConfig.enableGetCaching]): rewrites `Cache-Control` so
- * OkHttp's own disk cache can hold the body for [RetrostashOkHttpConfig.getMaxAgeSeconds]. Note
- * this rewrite is independent of Retrostash's own store — Retrostash invalidation does **not**
- * evict OkHttp HTTP cache entries. See
- * [Caching strategy](https://github.com/logickoder/retrostash#caching-strategy).
+ * Mutation responses are tagged with `Cache-Control: no-store` so OkHttp's own HTTP cache (if
+ * one is configured on the client) does not retain mutation payloads. GET responses are passed
+ * through unchanged — Retrostash does not modify GET `Cache-Control` headers; that's between
+ * the origin and OkHttp's HTTP cache.
  *
  * The synthetic cache-hit response carries a custom `X-Retrostash-Source` header so callers can
  * distinguish hit/miss without inspecting the cache directly. Possible values:
  *  - `retrostash-cache` — served from Retrostash's store.
- *  - `okhttp-cache` — served from OkHttp's HTTP cache (Retrostash store missed; consider whether
- *    you intended to layer caches — see *Caching strategy* link above).
+ *  - `okhttp-cache` — served from OkHttp's HTTP cache (Retrostash store missed). Retrostash
+ *    invalidation does not reach OkHttp HTTP cache; see
+ *    [Caching strategy](https://github.com/logickoder/retrostash#caching-strategy).
  *  - `okhttp-validated-cache` — OkHttp HTTP cache hit revalidated with the network.
  *  - `network` — fresh network response.
  */
@@ -142,30 +142,23 @@ class RetrostashOkHttpInterceptor(
             }
         }
 
-        return rewriteCacheControl(markResponseSource(networkResponse), request, metadata)
+        return rewriteCacheControl(markResponseSource(networkResponse), metadata)
     }
 
     private fun rewriteCacheControl(
         response: Response,
-        request: okhttp3.Request,
         metadata: OkHttpRetrostashMetadata?,
     ): Response {
         val isMutation = !metadata?.invalidateTemplates.isNullOrEmpty()
             || !metadata?.invalidateTagTemplates.isNullOrEmpty()
-        return when {
-            isMutation -> response.newBuilder()
+        return if (isMutation) {
+            response.newBuilder()
                 .removeHeader(HEADER_PRAGMA)
                 .removeHeader(HEADER_CACHE_CONTROL)
                 .header(HEADER_CACHE_CONTROL, "no-store")
                 .build()
-
-            request.method == "GET" && config.enableGetCaching -> response.newBuilder()
-                .removeHeader(HEADER_PRAGMA)
-                .removeHeader(HEADER_CACHE_CONTROL)
-                .header(HEADER_CACHE_CONTROL, "public, max-age=${config.getMaxAgeSeconds}")
-                .build()
-
-            else -> response
+        } else {
+            response
         }
     }
 
