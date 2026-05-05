@@ -58,7 +58,40 @@ class AndroidRetrostashStore(
         maxAgeMs: Long,
         tags: Set<String>,
     ) = synchronized(lock) {
+        writeLocked(
+            key = key,
+            payload = payload,
+            ttl = if (maxAgeMs > 0L) maxAgeMs else config.defaultMaxAgeMs,
+            tags = tags,
+        )
+    }
+
+    override suspend fun patch(
+        key: String,
+        payload: ByteArray,
+        maxAgeMs: Long?,
+        tags: Set<String>?,
+    ) = synchronized(lock) {
         if (key.isBlank()) return@synchronized
+        val previous = index[key]
+        val resolvedTtl = when {
+            maxAgeMs != null && maxAgeMs > 0L -> maxAgeMs
+            maxAgeMs == 0L -> config.defaultMaxAgeMs
+            previous != null -> (previous.expiresAt - previous.createdAt).coerceAtLeast(0L)
+                .takeIf { it > 0L } ?: config.defaultMaxAgeMs
+            else -> config.defaultMaxAgeMs
+        }
+        val resolvedTags = tags ?: previous?.tags ?: emptySet()
+        writeLocked(key, payload, resolvedTtl, resolvedTags)
+    }
+
+    private fun writeLocked(
+        key: String,
+        payload: ByteArray,
+        ttl: Long,
+        tags: Set<String>,
+    ) {
+        if (key.isBlank()) return
         val fileName = sha256(key) + ".bin"
         val file = File(cacheDir, fileName)
         file.writeBytes(payload)
@@ -72,7 +105,6 @@ class AndroidRetrostashStore(
         }
 
         val createdAt = now()
-        val ttl = if (maxAgeMs > 0L) maxAgeMs else config.defaultMaxAgeMs
         val entry = Entry(
             fileName = fileName,
             size = payload.size.toLong(),

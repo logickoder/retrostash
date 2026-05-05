@@ -127,6 +127,53 @@ class RetrostashKtorCacheTest {
     }
 
     @Test
+    fun updateQuery_without_tags_preserves_existing_entry_tags() = runTest {
+        val cache = runtime().cache
+        cache.updateQuery(
+            "ArticleApi",
+            "articles/{guid}",
+            mapOf("guid" to "abc"),
+            "v1".encodeToByteArray(),
+            maxAgeMs = 60_000L,
+            tags = listOf("article:{guid}"),
+        )
+
+        cache.updateQuery(
+            "ArticleApi",
+            "articles/{guid}",
+            mapOf("guid" to "abc"),
+            "v2".encodeToByteArray(),
+        )
+
+        cache.invalidateTag("article:abc")
+        assertNull(cache.peekQuery("ArticleApi", "articles/{guid}", mapOf("guid" to "abc")))
+    }
+
+    @Test
+    fun updateQuery_with_explicit_empty_tags_clears_tags() = runTest {
+        val cache = runtime().cache
+        cache.updateQuery(
+            "ArticleApi",
+            "articles/{guid}",
+            mapOf("guid" to "abc"),
+            "v1".encodeToByteArray(),
+            maxAgeMs = 60_000L,
+            tags = listOf("article:{guid}"),
+        )
+
+        cache.updateQuery(
+            "ArticleApi",
+            "articles/{guid}",
+            mapOf("guid" to "abc"),
+            "v2".encodeToByteArray(),
+            tags = emptyList(),
+        )
+
+        cache.invalidateTag("article:abc")
+        assertNotNull(cache.peekQuery("ArticleApi", "articles/{guid}", mapOf("guid" to "abc")))
+    }
+
+    @Test
     fun bodyBytes_fallback_resolves_placeholder_for_peek() = runTest {
         val cache = runtime().cache
         cache.updateQuery(

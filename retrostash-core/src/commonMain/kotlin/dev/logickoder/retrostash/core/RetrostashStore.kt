@@ -35,6 +35,25 @@ interface RetrostashStore {
     )
 
     /**
+     * PATCH-style write. Replaces the [payload] of [key] but **preserves** [maxAgeMs] and
+     * [tags] when their argument is `null`.
+     *
+     * Semantics per parameter:
+     *  - `maxAgeMs = null` → keep existing entry's TTL. `0` → no explicit expiry. `>0` → use it.
+     *  - `tags = null` → keep existing entry's tags. `emptySet()` → explicitly clear.
+     *    Non-empty → replace.
+     *
+     * The `createdAt` timestamp resets — a patch is a new write, freshness window restarts.
+     * If [key] has no existing entry, falls back to: `maxAgeMs = 0`, `tags = emptySet()`.
+     */
+    suspend fun patch(
+        key: String,
+        payload: ByteArray,
+        maxAgeMs: Long? = null,
+        tags: Set<String>? = null,
+    )
+
+    /**
      * Removes any entries whose key contains `|`[template]`|` as a substring, plus the literal
      * key match if present. [template] should be the resolved (placeholder-substituted) form
      * (e.g. `users/42`, not `users/{id}`). Callers are responsible for the substitution.

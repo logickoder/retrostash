@@ -171,6 +171,85 @@ class RetrostashOkHttpCacheTest {
         assertNull(cache.peekQuery(UserApi::class.java, "users/{id}", mapOf("id" to "1")))
     }
 
+    @Test
+    fun updateQuery_without_tags_preserves_existing_entry_tags() {
+        val cache = bridge().cache
+        // Seed with tagged entry (mimics interceptor write from @CacheQuery)
+        cache.updateQuery(
+            ArticleApi::class.java,
+            "articles/{guid}",
+            mapOf("guid" to "abc"),
+            "v1".encodeToByteArray(),
+            maxAgeMs = 60_000L,
+            tags = listOf("article:{guid}"),
+        )
+
+        // PATCH without tags arg → tags preserved
+        cache.updateQuery(
+            ArticleApi::class.java,
+            "articles/{guid}",
+            mapOf("guid" to "abc"),
+            "v2".encodeToByteArray(),
+        )
+
+        // invalidateTag still finds and clears the patched entry
+        assertTrue(cache.invalidateTag("article:abc"))
+        assertNull(cache.peekQuery(ArticleApi::class.java, "articles/{guid}", mapOf("guid" to "abc")))
+    }
+
+    @Test
+    fun updateQuery_with_explicit_empty_tags_clears_tags() {
+        val cache = bridge().cache
+        cache.updateQuery(
+            ArticleApi::class.java,
+            "articles/{guid}",
+            mapOf("guid" to "abc"),
+            "v1".encodeToByteArray(),
+            maxAgeMs = 60_000L,
+            tags = listOf("article:{guid}"),
+        )
+
+        cache.updateQuery(
+            ArticleApi::class.java,
+            "articles/{guid}",
+            mapOf("guid" to "abc"),
+            "v2".encodeToByteArray(),
+            tags = emptyList(),
+        )
+
+        // tag deliberately stripped — invalidateTag finds no entry to clear
+        cache.invalidateTag("article:abc")
+        assertNotNull(cache.peekQuery(ArticleApi::class.java, "articles/{guid}", mapOf("guid" to "abc")))
+    }
+
+    @Test
+    fun updateQuery_preserves_envelope_contentType_when_null() {
+        val store = InMemoryRetrostashStore()
+        val bridge = RetrostashOkHttpBridge(store = store)
+        val cache = bridge.cache
+
+        val key = cache.updateQuery(
+            UserApi::class.java,
+            "users/{id}",
+            mapOf("id" to "1"),
+            "v1".encodeToByteArray(),
+            contentType = "text/plain",
+            maxAgeMs = 60_000L,
+        ) ?: error("seed failed")
+
+        cache.updateQuery(
+            UserApi::class.java,
+            "users/{id}",
+            mapOf("id" to "1"),
+            "v2".encodeToByteArray(),
+        )
+
+        val raw = kotlinx.coroutines.runBlocking { store.get(key) } ?: error("entry missing")
+        val envelope = CachedHttpEnvelopeCodec.decode(raw) ?: error("decode failed")
+        assertEquals("text/plain", envelope.contentType)
+        assertArrayEquals("v2".encodeToByteArray(), envelope.payload)
+    }
+
     private interface UserApi
     private interface ArticleApi
     private interface LikeApi

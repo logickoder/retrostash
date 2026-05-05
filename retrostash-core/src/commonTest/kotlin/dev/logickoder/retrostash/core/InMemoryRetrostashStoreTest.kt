@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -62,6 +63,51 @@ class InMemoryRetrostashStoreTest {
         store.invalidateTag("   ")
 
         assertNotNull(store.get("k"))
+    }
+
+    @Test
+    fun patch_preserves_tags_when_null_passed() = runTest {
+        val store = InMemoryRetrostashStore()
+        store.put("k", "v1".encodeToByteArray(), 60_000L, tags = setOf("article:7"))
+
+        store.patch("k", "v2".encodeToByteArray(), maxAgeMs = null, tags = null)
+
+        assertContentEquals("v2".encodeToByteArray(), store.get("k"))
+        // Tag still present — invalidateTag still clears
+        store.invalidateTag("article:7")
+        assertNull(store.get("k"))
+    }
+
+    @Test
+    fun patch_replaces_tags_when_non_null_set_passed() = runTest {
+        val store = InMemoryRetrostashStore()
+        store.put("k", "v1".encodeToByteArray(), 60_000L, tags = setOf("article:7"))
+
+        store.patch("k", "v2".encodeToByteArray(), tags = setOf("user:42"))
+
+        store.invalidateTag("article:7")
+        assertNotNull(store.get("k"))  // article:7 no longer matches
+        store.invalidateTag("user:42")
+        assertNull(store.get("k"))
+    }
+
+    @Test
+    fun patch_clears_tags_when_empty_set_passed() = runTest {
+        val store = InMemoryRetrostashStore()
+        store.put("k", "v1".encodeToByteArray(), 60_000L, tags = setOf("article:7"))
+
+        store.patch("k", "v2".encodeToByteArray(), tags = emptySet())
+
+        store.invalidateTag("article:7")
+        assertNotNull(store.get("k"))  // tag was explicitly cleared
+    }
+
+    @Test
+    fun patch_creates_entry_when_no_existing_with_default_metadata() = runTest {
+        val store = InMemoryRetrostashStore()
+        // No put first
+        store.patch("k", "v".encodeToByteArray(), maxAgeMs = null, tags = null)
+        assertContentEquals("v".encodeToByteArray(), store.get("k"))
     }
 
     @Test

@@ -45,6 +45,25 @@ class RetrostashEngine(
     }
 
     /**
+     * PATCH-style write. Replaces [payload] under the resolved [metadata] key. [maxAgeMs] and
+     * [tagsOverride] use null-means-preserve semantics (see [RetrostashStore.patch]).
+     *
+     * The cache layer is responsible for deciding when to pass `null` (preserve) vs a value
+     * (override); this method just forwards to the store.
+     */
+    suspend fun patchQueryResult(
+        metadata: QueryMetadata,
+        payload: ByteArray,
+        maxAgeMs: Long? = null,
+        tagsOverride: Set<String>? = null,
+    ) {
+        val key = keyResolver.resolve(metadata) ?: return
+        withStoreTimeoutOrNull(timeoutMs) {
+            store.patch(key, payload, maxAgeMs, tagsOverride)
+        }
+    }
+
+    /**
      * Invalidates every entry whose key contains `|<template>|` for any of [templates].
      *
      * Templates must already be **resolved** (placeholders substituted with the mutation's actual

@@ -44,6 +44,21 @@ class InMemoryRetrostashStore : RetrostashStore {
         )
     }
 
+    override suspend fun patch(
+        key: String,
+        payload: ByteArray,
+        maxAgeMs: Long?,
+        tags: Set<String>?,
+    ) = mutex.withLock {
+        val existing = entries[key]
+        entries[key] = Entry(
+            payload = payload,
+            createdAt = TimeSource.Monotonic.markNow(),
+            maxAgeMs = (maxAgeMs ?: existing?.maxAgeMs ?: 0L).coerceAtLeast(0L),
+            tags = tags ?: existing?.tags ?: emptySet(),
+        )
+    }
+
     override suspend fun invalidate(template: String) = mutex.withLock {
         if (entries.remove(template) != null) {
             return@withLock

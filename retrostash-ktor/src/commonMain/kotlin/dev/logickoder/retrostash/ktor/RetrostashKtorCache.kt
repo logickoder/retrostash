@@ -50,31 +50,40 @@ class RetrostashKtorCache internal constructor(
     }
 
     /**
-     * Persists [payload] under the resolved cache key for the given query. Returns the
-     * resolved cache key, or `null` if any placeholder couldn't be resolved.
+     * PATCH-style write. Persists [payload] under the resolved cache key for the given query.
+     * Returns the resolved cache key, or `null` if any placeholder couldn't be resolved.
      *
-     * [tags] are tag templates resolved against the same bindings. The bytes you supply must
-     * be in the same shape your API returns — Retrostash doesn't serialize for you. See the
-     * README's *Cache API* section for recipes covering kotlinx.serialization, Moshi, and Gson.
+     * Each metadata parameter has null-means-preserve semantics:
+     *  - [maxAgeMs] = `null` → keep the existing entry's TTL. `0L` → no explicit expiry.
+     *  - [tags] = `null` → keep the existing entry's tags. `emptyList()` → explicitly clear.
+     *    Non-empty → resolve as tag templates against [bindings] / [bodyBytes] and replace.
+     *
+     * The freshness window restarts on every patch.
+     *
+     * The bytes you supply must be in the same shape your API returns — Retrostash doesn't
+     * serialize for you. See the README's *Cache API* section for recipes covering
+     * kotlinx.serialization, Moshi, and Gson.
      */
     suspend fun updateQuery(
         scopeName: String,
         template: String,
         bindings: Map<String, Any?>,
         payload: ByteArray,
-        maxAgeMs: Long = 0L,
-        tags: List<String> = emptyList(),
+        maxAgeMs: Long? = null,
+        tags: List<String>? = null,
         bodyBytes: ByteArray? = null,
     ): String? {
+        val tagTemplates = tags ?: emptyList()
         val metadata = QueryMetadata(
             scopeName = scopeName,
             template = template,
             bindings = bindings.toStringBindings(),
             bodyBytes = bodyBytes,
-            tagTemplates = tags,
+            tagTemplates = tagTemplates,
         )
         val resolvedKey = keyResolver.resolve(metadata) ?: return null
-        engine.persistQueryResult(metadata, payload, maxAgeMs)
+        val tagsOverride: Set<String>? = tags?.let { keyResolver.resolveTags(metadata).toSet() }
+        engine.patchQueryResult(metadata, payload, maxAgeMs, tagsOverride)
         return resolvedKey
     }
 

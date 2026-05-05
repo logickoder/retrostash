@@ -61,30 +61,40 @@ class RetrostashOkHttpCache internal constructor(
     }
 
     /**
-     * Persists [payload] under the resolved cache key for the given query, wrapped in a
-     * synthetic 200 OK envelope with [contentType]. Returns the resolved cache key, or `null`
-     * if any placeholder in [template] couldn't be resolved.
+     * PATCH-style write. Persists [payload] under the resolved cache key for the given query,
+     * wrapped in a synthetic 200 OK envelope. Returns the resolved cache key, or `null` if any
+     * placeholder in [template] couldn't be resolved.
      *
-     * [tags] are tag templates resolved against the same bindings (same syntax as
-     * `@CacheQuery.tags`). [maxAgeMs] is the entry TTL in Retrostash's store; `0` means no
-     * explicit expiry.
+     * Each metadata parameter has null-means-preserve semantics:
+     *  - [contentType] = `null` → keep the existing entry's `Content-Type` (or
+     *    `"application/json"` if no entry exists yet).
+     *  - [maxAgeMs] = `null` → keep the existing entry's TTL. `0L` → no explicit expiry. `>0`
+     *    → use it.
+     *  - [tags] = `null` → keep the existing entry's tags. `emptyList()` → explicitly clear.
+     *    Non-empty → resolve as tag templates against [bindings] / [bodyBytes] and replace.
      *
-     * The bytes you supply must be in the same shape your API returns to consumers — Retrostash
-     * is converter-agnostic and does not serialize for you. Common recipes:
+     * The freshness window restarts on every patch (a new write resets `createdAt`).
+     *
+     * Common recipes for the byte payload:
      *
      * ```kotlin
-     * // From a typed model with kotlinx.serialization
+     * // Optimistic update with kotlinx.serialization — preserve tags from the original
+     * // @CacheQuery write
      * val payload = Json.encodeToString(updatedUser).encodeToByteArray()
      * bridge.cache.updateQuery(
      *     UserApi::class.java,
      *     template = "users/{id}",
      *     bindings = mapOf("id" to "42"),
      *     payload = payload,
-     *     tags = listOf("user:{id}"),
+     *     // contentType, maxAgeMs, tags omitted → all preserved
      * )
      *
-     * // From a raw String response
-     * val payload = "raw-body".encodeToByteArray()
+     * // Explicitly replace tags
+     * bridge.cache.updateQuery(
+     *     ...,
+     *     payload = payload,
+     *     tags = listOf("user:{id}", "tenant:{tenantId}"),
+     * )
      *
      * // From a Retrofit Response<ResponseBody>
      * val payload = response.body()?.bytes() ?: return
@@ -98,34 +108,48 @@ class RetrostashOkHttpCache internal constructor(
         template: String,
         bindings: Map<String, Any?>,
         payload: ByteArray,
-        contentType: String = "application/json",
-        maxAgeMs: Long = 0L,
-        tags: List<String> = emptyList(),
+        contentType: String? = null,
+        maxAgeMs: Long? = null,
+        tags: List<String>? = null,
         bodyBytes: ByteArray? = null,
     ): String? {
+        val tagTemplates = tags ?: emptyList()
         val metadata = QueryMetadata(
             scopeName = apiClass.simpleName,
             template = template,
             bindings = bindings.toStringBindings(),
             bodyBytes = bodyBytes,
-            tagTemplates = tags,
+            tagTemplates = tagTemplates,
         )
         val resolvedKey = keyResolver.resolve(metadata) ?: return null
+
+        val resolvedContentType = contentType
+            ?: existingEnvelope(resolvedKey)?.contentType
+            ?: "application/json"
         val envelope = CachedHttpEnvelope(
             payload = payload,
-            contentType = contentType,
+            contentType = resolvedContentType,
             statusCode = 200,
             statusMessage = "OK",
             headers = emptyList(),
         )
+
+        val tagsOverride: Set<String>? = tags?.let { keyResolver.resolveTags(metadata).toSet() }
+
         runBlocking {
-            engine.persistQueryResult(
+            engine.patchQueryResult(
                 metadata = metadata,
                 payload = CachedHttpEnvelopeCodec.encode(envelope),
                 maxAgeMs = maxAgeMs,
+                tagsOverride = tagsOverride,
             )
         }
         return resolvedKey
+    }
+
+    private fun existingEnvelope(key: String): CachedHttpEnvelope? {
+        val raw = runBlocking { store.get(key) } ?: return null
+        return CachedHttpEnvelopeCodec.decode(raw)
     }
 
     /**

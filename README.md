@@ -317,16 +317,41 @@ suspend fun toggleLike(article: Article) {
 }
 ```
 
+### `updateQuery` PATCH semantics
+
+`updateQuery` writes the new `payload` but **preserves** existing entry metadata when an arg is
+omitted (`null`). Pass an explicit non-null value to override.
+
+| Param | `null` (default) | Explicit value |
+|---|---|---|
+| `contentType` (OkHttp) | Keep existing envelope content-type, fall back to `"application/json"` if no entry. | Replace. |
+| `maxAgeMs` | Keep existing TTL. Fall back to `0` (no expiry) for new entries. | Replace. `0L` = no expiry. |
+| `tags` | Keep existing tags. Fall back to empty for new entries. | `emptyList()` = clear; non-empty = resolve templates and replace. |
+
+The `createdAt` timestamp resets on every patch — a new write restarts the freshness window.
+
+This means optimistic UI updates are tag-safe by default:
+
+```kotlin
+// Original: written by @CacheQuery interceptor with tags = ["article:{id}"]
+// Now: optimistic patch — payload changes, tags survive
+bridge.cache.updateQuery(
+    CommentApi::class.java,
+    "comment:{container_id}",
+    mapOf("container_id" to articleId),
+    payload = newJsonBytes,
+    // contentType, maxAgeMs, tags all null → preserved
+)
+// invalidateTag("article:$articleId") still finds + clears this entry.
+```
+
 ### Footguns
 
 - **Bytes drift from server.** Whatever you write with `updateQuery` is served on every
   subsequent `peekQuery` until the next mutation/invalidation. Wrong bytes = lying cache.
-- **Tag-resolution mismatches.** If your `tags` argument resolves to a different value than
-  the `@CacheQuery.tags` would, future tag invalidations won't clear your manually-written
-  entry.
 - **Status-code spoofing.** OkHttp's `updateQuery` wraps payloads in a synthetic `200 OK`
-  envelope with the supplied content-type. If consumer code branches on status code, it will
-  always see 200 for cache-hit entries you wrote.
+  envelope. If consumer code branches on status code, it will always see 200 for cache-hit
+  entries you wrote.
 - **No ETag / 304 revalidation** on synthetic envelopes — they carry no `ETag` header.
 - **Coexistence with OkHttp's `Cache(...)`.** Same caveat as elsewhere: Retrostash invalidation
   doesn't reach OkHttp's HTTP cache. See [Caching strategy](#caching-strategy).
