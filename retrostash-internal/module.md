@@ -1,18 +1,25 @@
 # Module retrostash-internal
 
-Implementation-detail module shared between the OkHttp and Ktor adapters. **Not published to
-Maven Central** and **not part of the stable API.**
+Implementation-detail module shared between the OkHttp and Ktor adapters. **Not part of the
+stable API.**
 
-Consumers should never depend on this module. It exists so the OkHttp and Ktor transport
-adapters can share helpers (placeholder substitution, future cross-adapter utilities) without
-duplicating code or polluting the public surface of `retrostash-core`.
+Published to Maven Central so the `retrostash-okhttp` / `retrostash-ktor` POMs resolve
+transitively without consumers having to add it manually. Don't depend on this module
+directly — every public declaration is annotated
+[`@RetrostashInternalApi`][dev.logickoder.retrostash.internal.RetrostashInternalApi] and
+requires opt-in to use. Signatures may change in any release without a deprecation cycle.
 
-Everything in this module is annotated [`@RetrostashInternalApi`][dev.logickoder.retrostash.internal.RetrostashInternalApi]
-and requires opt-in to use, signaling that signatures may change in any release.
+Exists so the transport adapters can share helpers (placeholder substitution, mutation
+invalidation orchestration, binding coercion) without duplicating code or polluting
+`retrostash-core`'s public surface.
 
 ## Entry points
 
 - [`TemplateResolver`][dev.logickoder.retrostash.internal.TemplateResolver] — `{placeholder}`
   substitution against bindings with JSON-body fallback.
+- [`RetrostashEngine.runMutationInvalidations`][dev.logickoder.retrostash.internal.runMutationInvalidations]
+  — resolves invalidate-template + invalidate-tag templates and dispatches to the engine.
+- [`Map.toStringBindings`][dev.logickoder.retrostash.internal.toStringBindings] — coerces
+  `Any?`-valued bindings to the `String`-valued shape `CoreKeyResolver` expects.
 - [`RetrostashInternalApi`][dev.logickoder.retrostash.internal.RetrostashInternalApi] —
   opt-in marker.
