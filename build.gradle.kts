@@ -34,6 +34,12 @@ dokka {
 subprojects {
     plugins.withId("org.jetbrains.dokka") {
         extensions.configure<org.jetbrains.dokka.gradle.DokkaExtension>("dokka") {
+            val moduleMd = layout.projectDirectory.file("module.md")
+            if (moduleMd.asFile.exists()) {
+                dokkaSourceSets.configureEach {
+                    includes.from(moduleMd)
+                }
+            }
             dokkaSourceSets.configureEach {
                 jdkVersion.set(17)
                 skipDeprecated.set(false)

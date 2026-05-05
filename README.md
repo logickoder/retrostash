@@ -21,11 +21,31 @@ library targeting Android, JVM, and iOS.
 > 📚 [API docs](https://logickoder.dev/retrostash/api/) ·
 > 📦 [APK + Web bundle](https://github.com/logickoder/retrostash/releases)
 
+## Contents
+- [Key Features](#key-features)
+- [Modules](#modules)
+- [Public API](#public-api)
+- [Integration](#integration)
+- [OkHttp / Retrofit (Android)](#okhttp--retrofit-android)
+- [Ktor (KMP)](#ktor-kmp)
+- [Template Rules](#template-rules)
+- [Clearing Cache](#clearing-cache)
+- [External Invalidation](#external-invalidation)
+- [Caching strategy](#caching-strategy) — **read this before shipping with OkHttp**
+- [Tags: cross-API invalidation](#tags-cross-api-invalidation)
+- [Migrating from 0.0.4](#migrating-from-004)
+- [Notes](#notes)
+- [FAQ](#faq)
+- [API documentation](#api-documentation)
+- [Contributing and Releases](#contributing-and-releases)
+
 ### Key Features
 - **Persisted POST query caching:** Safely cache complex payloads like searches and GraphQL.
 - **Mutation-driven cache invalidation:** Automatically clear stale data when a user updates a resource.
 - **Dynamic key resolution:** Cache templates are resolved directly from `@Path`, `@Query`, and `@Body` parameters.
-- **HTTP cache friendliness:** GET cache header policies that work seamlessly with OkHttp.
+- **Annotation-driven cache, not a passive HTTP cache.** Retrostash owns the cache lifecycle —
+  annotation-controlled writes, mutation- and tag-driven invalidation. Coordinate carefully if
+  you also use OkHttp's `Cache(...)` (see [Caching strategy](#caching-strategy)).
 - **Multiplatform:** Core engine + annotations + Ktor plugin run on Android, JVM, and iOS. OkHttp
   adapter runs on Android + JVM.
 
@@ -117,8 +137,7 @@ interface UserApi {
 ```
 
 ```kotlin
-val cache = Cache(File(appContext.cacheDir, "http-cache"), 10L * 1024 * 1024)
-val okHttpBuilder = OkHttpClient.Builder().cache(cache)
+val okHttpBuilder = OkHttpClient.Builder()
 
 val bridge = RetrostashOkHttpAndroid.install(
     builder = okHttpBuilder,
@@ -129,6 +148,10 @@ val bridge = RetrostashOkHttpAndroid.install(
 val okHttpClient = okHttpBuilder.build()
 val sameBridge = RetrostashOkHttpBridge.from(okHttpClient)
 ```
+
+> **Heads up — do not also pass `cache(...)` to the `OkHttpClient.Builder` unless you've read
+> [Caching strategy](#caching-strategy).** Layering OkHttp's HTTP disk cache on top of Retrostash
+> creates a stale-data window after invalidation.
 
 JVM (non-Android) consumers construct `RetrostashOkHttpBridge` directly with their own
 `RetrostashStore` impl — no `Context` needed.
@@ -195,6 +218,88 @@ bridge.invalidateQuery(
     bindings = mapOf("id" to "42", "tenant" to "acme"),
 )
 ```
+
+## Caching strategy
+
+Applies to the OkHttp / Retrofit adapter. Ktor users can skip this section — `HttpClient` does
+not ship a built-in HTTP disk cache, so the layering trap below does not apply.
+
+### Two cache layers
+
+```
+┌─────────────────────────────┐
+│  Retrostash store           │  ← @CacheQuery / @CacheMutate / tags
+│  (annotation-driven)        │     Authoritative for invalidation.
+└──────────────┬──────────────┘
+               │ miss
+┌──────────────▼──────────────┐
+│  OkHttp HTTP cache (Cache)  │  ← Cache-Control driven, opaque to
+│  (optional, header-driven)  │     Retrostash invalidation.
+└──────────────┬──────────────┘
+               │ miss
+┌──────────────▼──────────────┐
+│  Network                    │
+└─────────────────────────────┘
+```
+
+### Why it matters
+
+Retrostash invalidation (`@CacheMutate`, `bridge.invalidateTag`, `bridge.invalidateQuery`,
+`bridge.invalidateQueryKey`) clears the **Retrostash store only**. It does not evict entries
+from OkHttp's HTTP cache.
+
+If `RetrostashOkHttpConfig.enableGetCaching = true` (the default) **and** you set
+`OkHttpClient.Builder().cache(...)`, GETs end up in **both** caches:
+
+1. Retrostash interceptor (application interceptor) caches the response in Retrostash's store.
+2. The `Cache-Control: public, max-age=86400` rewrite makes OkHttp's HTTP cache hold it too.
+
+After an invalidation:
+
+1. Retrostash store entry: cleared ✓
+2. OkHttp HTTP cache entry: still there, up to 24h ✗
+3. Next GET → Retrostash store MISS → `chain.proceed` → OkHttp HTTP cache HIT → response with
+   `X-Retrostash-Source: okhttp-cache`.
+
+### What `enableGetCaching` actually does
+
+It rewrites outgoing GET response `Cache-Control` headers to
+`public, max-age=${getMaxAgeSeconds}` (default 24h). That has *no effect* on Retrostash's own
+store — Retrostash caches based on `@CacheQuery`, regardless of this flag. The flag is purely an
+OkHttp HTTP cache plumbing knob.
+
+### Two correct configurations
+
+**Single cache (recommended):** drop `OkHttpClient.cache(...)`. Retrostash is the only cache.
+Tag and mutation invalidation are authoritative. This matches the example above.
+
+```kotlin
+val okHttpBuilder = OkHttpClient.Builder() // no .cache(...)
+RetrostashOkHttpAndroid.install(builder = okHttpBuilder, context = appContext)
+```
+
+**Layered:** keep OkHttp's `Cache(...)` only if you specifically want OkHttp's
+`If-None-Match`/`304` revalidation flow on cold paths. Set `enableGetCaching = false` so
+Retrostash stops overriding origin `Cache-Control`, and accept that Retrostash invalidation does
+**not** evict OkHttp HTTP cache entries.
+
+```kotlin
+val cache = Cache(File(appContext.cacheDir, "http-cache"), 10L * 1024 * 1024)
+val okHttpBuilder = OkHttpClient.Builder().cache(cache)
+RetrostashOkHttpAndroid.install(
+    builder = okHttpBuilder,
+    context = appContext,
+    config = RetrostashOkHttpConfig(enableGetCaching = false),
+)
+```
+
+### Decision matrix
+
+| Use OkHttp `Cache(...)` ? | `enableGetCaching` | Result                                                                                  |
+|---------------------------|--------------------|-----------------------------------------------------------------------------------------|
+| No                        | any                | Single source of truth: Retrostash. Recommended.                                        |
+| Yes                       | `false`            | Layered, but origin `Cache-Control` rules. Stale GET window after invalidation.         |
+| Yes                       | `true`             | **Footgun.** Up to 24h stale GET window after invalidation. Avoid.                      |
 
 ## Tags: cross-API invalidation
 
@@ -266,6 +371,50 @@ Ktor users have the same surface: `tags` on `retrostashQuery`, `invalidateTags` 
   right order automatically.
 - For Ktor, response persistence happens on 2xx only; invalidation also gates on 2xx. Non-2xx
   responses leave the cache untouched.
+
+## FAQ
+
+**Why am I still seeing `X-Retrostash-Source: okhttp-cache` after invalidating?**
+
+Your `OkHttpClient.Builder` has `cache(...)` set, and `RetrostashOkHttpConfig.enableGetCaching`
+is `true` (the default). Retrostash invalidation cleared the Retrostash store, but OkHttp's HTTP
+disk cache still has the entry. See [Caching strategy](#caching-strategy) — drop OkHttp's
+`Cache(...)` or set `enableGetCaching = false`.
+
+**Which TTL knob does what?**
+
+- `@CacheQuery(maxAgeSeconds = ...)` — TTL for that query in **Retrostash's** store.
+- `RetrostashOkHttpConfig.defaultMaxAgeMs` — fallback TTL for Retrostash's store when a
+  `@CacheQuery` doesn't declare one.
+- `RetrostashOkHttpConfig.getMaxAgeSeconds` — TTL injected as `Cache-Control: max-age=...` for
+  **OkHttp's HTTP cache**, only when `enableGetCaching = true`. Has no effect on Retrostash's
+  store.
+
+**Where do I find the API docs?**
+
+- Hosted: [logickoder.dev/retrostash/api/](https://logickoder.dev/retrostash/api/).
+- Local: `./gradlew dokkaGenerate` → `build/dokka/html/index.html`.
+
+**Does Retrostash work without Retrofit?**
+
+Yes — use the `retrostashQuery` / `retrostashMutate` extensions on `Request.Builder` (OkHttp) or
+`HttpRequestBuilder` (Ktor). Annotations are optional sugar over the same metadata path.
+
+**Can I use a custom store?**
+
+Implement `RetrostashStore` and pass it to `RetrostashOkHttpBridge` / `RetrostashPlugin`. The
+in-memory and Android disk stores are reference implementations.
+
+## API documentation
+
+Full Dokka-generated reference at
+**[logickoder.dev/retrostash/api/](https://logickoder.dev/retrostash/api/)**. Each module's
+landing page summarizes its purpose and links to the most-used types. Generate locally with:
+
+```bash
+./gradlew dokkaGenerate
+open build/dokka/html/index.html
+```
 
 ## Contributing and Releases
 

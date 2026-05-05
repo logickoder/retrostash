@@ -6,6 +6,7 @@ import Footer from './components/Footer';
 const Home = lazy(() => import('./routes/Home'));
 const Install = lazy(() => import('./routes/Install'));
 const Migration = lazy(() => import('./routes/Migration'));
+const Caching = lazy(() => import('./routes/Caching'));
 const NotFound = lazy(() => import('./routes/NotFound'));
 
 function RouteFallback() {
@@ -28,6 +29,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/install" element={<Install />} />
+            <Route path="/caching" element={<Caching />} />
             <Route path="/migration" element={<Migration />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

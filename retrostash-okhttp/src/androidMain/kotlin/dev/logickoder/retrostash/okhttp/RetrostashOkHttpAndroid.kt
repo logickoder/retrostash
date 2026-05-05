@@ -39,6 +39,11 @@ object RetrostashOkHttpAndroid {
     /**
      * Creates a bridge and installs its interceptors onto [builder]. Returns the bridge so
      * callers can keep a reference for direct invalidation later.
+     *
+     * **Caching strategy:** if [builder] also has `cache(...)` set, you have two cache layers.
+     * Retrostash invalidation does **not** evict OkHttp HTTP cache entries — see
+     * [Caching strategy](https://github.com/logickoder/retrostash#caching-strategy) for the
+     * recommended configuration before shipping.
      */
     @JvmStatic
     @JvmOverloads

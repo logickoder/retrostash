@@ -36,7 +36,7 @@ const transports = [
   {
     name: 'OkHttp',
     platforms: ['Android', 'JVM'],
-    blurb: 'Application + network interceptors. Pairs with OkHttp\'s own Cache for full HTTP cache semantics.',
+    blurb: 'Application + network interceptors. Annotation-driven cache writes; mutation- and tag-driven invalidation owns the cache lifecycle.',
   },
   {
     name: 'Retrofit',

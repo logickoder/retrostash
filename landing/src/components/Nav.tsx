@@ -62,6 +62,14 @@ export default function Nav() {
               </>
             )}
           </NavLink>
+          <NavLink to="/caching" className={internal}>
+            {({ isActive }) => (
+              <>
+                Caching
+                {isActive && <ActiveDot />}
+              </>
+            )}
+          </NavLink>
           <NavLink to="/migration" className={internal}>
             {({ isActive }) => (
               <>

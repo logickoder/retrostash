@@ -39,6 +39,10 @@ package dev.logickoder.retrostash
  * The consumer invalidates all three with a single repository call — see
  * `RetrostashOkHttpBridge.invalidateTags` / `RetrostashKtorRuntime.invalidateTags`.
  *
+ * OkHttp users: review [Caching strategy](https://github.com/logickoder/retrostash#caching-strategy)
+ * before pairing this annotation with `OkHttpClient.Builder().cache(...)` — the two layers do
+ * not share an invalidation path.
+ *
  * @property key Template that, after placeholder substitution, identifies the cached entry.
  * Must be unique per logical query. Must match the templates used in [CacheMutate.invalidate]
  * for invalidation to fire.

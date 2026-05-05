@@ -1,4 +1,5 @@
 import { ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function Hero() {
   return (
@@ -82,6 +83,17 @@ export default function Hero() {
               Read the API docs
             </a>
           </div>
+
+          <p
+            className="mt-1 text-sm text-on-surface-variant"
+            style={{ animation: 'var(--animate-fade-up)', animationDelay: '0.4s' }}
+          >
+            Wiring up OkHttp? Read the{' '}
+            <Link className="font-medium text-primary hover:underline" to="/caching">
+              caching strategy
+            </Link>{' '}
+            first to avoid the dual-cache footgun.
+          </p>
         </div>
       </div>
     </section>

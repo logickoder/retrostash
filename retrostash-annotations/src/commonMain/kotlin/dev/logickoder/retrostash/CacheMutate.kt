@@ -29,6 +29,10 @@ package dev.logickoder.retrostash
  * suspend fun submitComment(@Body req: CommentRequest): CommentResponse
  * ```
  *
+ * OkHttp users: invalidation here clears Retrostash's store only. If you also use
+ * `OkHttpClient.Builder().cache(...)`, that disk cache is **not** evicted — see
+ * [Caching strategy](https://github.com/logickoder/retrostash#caching-strategy).
+ *
  * @property invalidate Cache key templates to clear after a successful mutation. The templates
  * must match exactly the [CacheQuery.key] templates used by the queries you want invalidated;
  * partial matches do not invalidate.

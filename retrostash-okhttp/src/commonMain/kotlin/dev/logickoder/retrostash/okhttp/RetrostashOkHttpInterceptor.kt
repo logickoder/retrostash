@@ -27,10 +27,18 @@ import retrofit2.Invocation
  * [OkHttpRetrostashMetadata.invalidateTemplates] against bindings and invalidates each.
  *
  * On any GET (when [RetrostashOkHttpConfig.enableGetCaching]): rewrites `Cache-Control` so
- * OkHttp's own disk cache can hold the body for [RetrostashOkHttpConfig.getMaxAgeSeconds].
+ * OkHttp's own disk cache can hold the body for [RetrostashOkHttpConfig.getMaxAgeSeconds]. Note
+ * this rewrite is independent of Retrostash's own store — Retrostash invalidation does **not**
+ * evict OkHttp HTTP cache entries. See
+ * [Caching strategy](https://github.com/logickoder/retrostash#caching-strategy).
  *
  * The synthetic cache-hit response carries a custom `X-Retrostash-Source` header so callers can
- * distinguish hit/miss without inspecting the cache directly.
+ * distinguish hit/miss without inspecting the cache directly. Possible values:
+ *  - `retrostash-cache` — served from Retrostash's store.
+ *  - `okhttp-cache` — served from OkHttp's HTTP cache (Retrostash store missed; consider whether
+ *    you intended to layer caches — see *Caching strategy* link above).
+ *  - `okhttp-validated-cache` — OkHttp HTTP cache hit revalidated with the network.
+ *  - `network` — fresh network response.
  */
 class RetrostashOkHttpInterceptor(
     private val engine: RetrostashEngine,

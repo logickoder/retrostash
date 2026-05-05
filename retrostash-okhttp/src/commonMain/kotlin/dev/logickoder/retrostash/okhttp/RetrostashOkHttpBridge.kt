@@ -47,6 +47,11 @@ class RetrostashOkHttpBridge(
      *
      * Order matters: the handle interceptor must precede the cache interceptor so [from] can
      * recover this bridge from a built [OkHttpClient].
+     *
+     * **Caching strategy:** if [builder] also has `cache(...)` set, you have two cache layers
+     * (Retrostash store + OkHttp HTTP cache). Retrostash invalidation does **not** evict OkHttp
+     * HTTP cache entries — see [Caching strategy](https://github.com/logickoder/retrostash#caching-strategy)
+     * for the recommended configuration.
      */
     fun install(builder: OkHttpClient.Builder): OkHttpClient.Builder {
         builder.addInterceptor(RetrostashOkHttpHandleInterceptor(this))
