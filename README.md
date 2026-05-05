@@ -356,9 +356,9 @@ not ship a built-in HTTP disk cache, so the layering trap below does not apply.
 
 ### Why it matters
 
-Retrostash invalidation (`@CacheMutate`, `bridge.invalidateTag`, `bridge.invalidateQuery`,
-`bridge.invalidateQueryKey`) clears the **Retrostash store only**. It does not evict entries
-from OkHttp's HTTP cache.
+Retrostash invalidation (`@CacheMutate`, `bridge.cache.invalidateTag`,
+`bridge.cache.invalidateQuery`, `bridge.cache.invalidateQueryKey`) clears the **Retrostash
+store only**. It does not evict entries from OkHttp's HTTP cache.
 
 If `RetrostashOkHttpConfig.enableGetCaching = true` (the default) **and** you set
 `OkHttpClient.Builder().cache(...)`, GETs end up in **both** caches:
@@ -441,7 +441,7 @@ Refresh the article from one place — pass every identifier the article carries
 ```kotlin
 class ArticleRepository(private val bridge: RetrostashOkHttpBridge) {
     fun invalidateArticle(article: Article) {
-        bridge.invalidateTags(
+        bridge.cache.invalidateTags(
             "article:${article.guid}",
             "article:${article.conceptId}",
             "article:${article.contentUri}",
@@ -462,7 +462,7 @@ suspend fun submitComment(@Body req: CommentRequest): Response<CommentResponse>
 ```
 
 Ktor users have the same surface: `tags` on `retrostashQuery`, `invalidateTags` on
-`retrostashMutate`, and `runtime.invalidateTags(listOf(...))` for imperative refresh.
+`retrostashMutate`, and `runtime.cache.invalidateTags(listOf(...))` for imperative refresh.
 
 ## Migrating from 0.0.4
 

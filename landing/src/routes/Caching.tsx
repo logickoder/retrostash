@@ -147,8 +147,8 @@ export default function Caching() {
         <h2 className="text-2xl font-semibold tracking-tight">Why it matters</h2>
         <p className="mt-4 text-on-surface-variant">
           Retrostash invalidation (<code className="font-mono text-sm">@CacheMutate</code>,{' '}
-          <code className="font-mono text-sm">bridge.invalidateTag</code>,{' '}
-          <code className="font-mono text-sm">bridge.invalidateQuery</code>) clears the{' '}
+          <code className="font-mono text-sm">bridge.cache.invalidateTag</code>,{' '}
+          <code className="font-mono text-sm">bridge.cache.invalidateQuery</code>) clears the{' '}
           <strong>Retrostash store only</strong>. It does not evict entries from OkHttp's HTTP
           cache.
         </p>
