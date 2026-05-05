@@ -81,7 +81,7 @@ class RetrostashKtorRuntimeTest {
         )
         runtime.persistQueryResult(queryMetadata, "payload".encodeToByteArray())
 
-        runtime.invalidateTags(listOf("article:abc"))
+        runtime.cache.invalidateTags(listOf("article:abc"))
 
         assertNull(runtime.resolveFromCache(queryMetadata))
     }

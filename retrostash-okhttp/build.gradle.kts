@@ -22,6 +22,7 @@ kotlin {
         commonMain.dependencies {
             api(project(":retrostash-core"))
             api(project(":retrostash-annotations"))
+            implementation(project(":retrostash-internal"))
             implementation(libs.coroutines.core)
             api(libs.okhttp)
             implementation(libs.retrofit)

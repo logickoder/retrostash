@@ -7,8 +7,8 @@ package dev.logickoder.retrostash.okhttp
  *
  * Retrostash maintains its **own** annotation-driven cache (the [dev.logickoder.retrostash.core.RetrostashStore]).
  * OkHttp ships its **own** HTTP disk cache (`OkHttpClient.Builder().cache(...)`). These are two
- * different caches. Retrostash invalidation (`@CacheMutate`, `bridge.invalidateTag`,
- * `bridge.invalidateQuery`) clears the Retrostash store **only** — it does not evict entries from
+ * different caches. Retrostash invalidation (`@CacheMutate`, `bridge.cache.invalidateTag`,
+ * `bridge.cache.invalidateQuery`) clears the Retrostash store **only** — it does not evict entries from
  * OkHttp's HTTP cache.
  *
  * If both layers are active and [enableGetCaching] is `true`, GETs end up in **both** caches and a

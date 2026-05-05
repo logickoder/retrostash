@@ -30,7 +30,7 @@ library targeting Android, JVM, and iOS.
 - [Ktor (KMP)](#ktor-kmp)
 - [Template Rules](#template-rules)
 - [Clearing Cache](#clearing-cache)
-- [External Invalidation](#external-invalidation)
+- [Cache API](#cache-api) — peek / update / invalidate / clear
 - [Caching strategy](#caching-strategy) — **read this before shipping with OkHttp**
 - [Tags: cross-API invalidation](#tags-cross-api-invalidation)
 - [Migrating from 0.0.4](#migrating-from-004)
@@ -96,14 +96,15 @@ dependencyResolutionManagement {
 ```kotlin
 // module build.gradle.kts
 dependencies {
-    implementation("dev.logickoder:retrostash-core:0.0.8")
-    implementation("dev.logickoder:retrostash-annotations:0.0.8")
-    // pick your transport:
+    // Pick ONE transport. Each pulls retrostash-core + retrostash-annotations transitively
+    // so you don't add them yourself.
     implementation("dev.logickoder:retrostash-okhttp:0.0.8")
     // or
     implementation("dev.logickoder:retrostash-ktor:0.0.8")
 }
 ```
+
+Need both transports in one project (rare — usually one HTTP stack per app)? Add both `retrostash-okhttp` and `retrostash-ktor`. Don't add `retrostash-core` or `retrostash-annotations` directly — they come along for the ride.
 
 ### iOS (Swift Package Manager)
 
@@ -208,16 +209,127 @@ RetrostashOkHttpAndroid.clear(appContext)
 store.clear()
 ```
 
-## External Invalidation
+## Cache API
+
+Direct cache control lives on a dedicated `cache` accessor on each transport — `bridge.cache`
+(OkHttp) and `runtime.cache` (Ktor). Same conceptual surface, ergonomics tuned to the transport.
+
+### Surface
+
+| Verb | OkHttp (blocking, `Class<*>` scope) | Ktor (suspend, `String` scope) |
+|---|---|---|
+| Read | `bridge.cache.peekQuery(apiClass, template, bindings)` | `runtime.cache.peekQuery(scopeName, template, bindings, bodyBytes?)` |
+| Write | `bridge.cache.updateQuery(apiClass, template, bindings, payload, contentType?, maxAgeMs?, tags?)` | `runtime.cache.updateQuery(scopeName, template, bindings, payload, maxAgeMs?, tags?, bodyBytes?)` |
+| Invalidate (resolved) | `bridge.cache.invalidateQuery(apiClass, template, bindings)` | `runtime.cache.invalidateQuery(scopeName, template, bindings, bodyBytes?)` |
+| Invalidate (raw key) | `bridge.cache.invalidateQueryKey(key)` | `runtime.cache.invalidateQueryKey(key)` |
+| Invalidate by tag | `bridge.cache.invalidateTag(tag)` / `invalidateTags(vararg)` | `runtime.cache.invalidateTag(tag)` / `invalidateTags(list)` |
+| Clear all | `bridge.cache.clearAll()` | `runtime.cache.clearAll()` |
+
+OkHttp methods block (each call wraps `runBlocking` internally — Android-friendly). Ktor
+methods are `suspend` — call from any coroutine.
+
+### `bindings` vs `bodyBytes`
+
+**`bindings`** is a `Map<String, Any?>` of placeholder name → value. These match what `@Path`
+and `@Query` parameters provide on annotated endpoints. For most cache calls you supply this
+and nothing else.
+
+**`bodyBytes`** is the JSON-encoded request body. Used **only** as a fallback when a
+placeholder isn't in `bindings` and must be looked up by JSON field name (Retrostash uses
+`Utf8JsonLookup`). Most cache calls leave it `null`.
+
+Example: a `@CacheQuery("posts/{postId}")` on `@POST` with `@Body PostRequest(postId = 1337)`
+caches under a key resolved from the body. To peek that entry from outside the request flow,
+you must supply the same body bytes:
 
 ```kotlin
-val bridge = RetrostashOkHttpBridge.from(okHttpClient) ?: return
-bridge.invalidateQuery(
-    apiClass = UserApi::class.java,
-    template = "users/{id}?tenant={tenant}",
-    bindings = mapOf("id" to "42", "tenant" to "acme"),
-)
+val req = PostRequest(postId = 1337)
+val bodyBytes = Json.encodeToString(req).encodeToByteArray()
+bridge.cache.peekQuery(PostApi::class.java, "posts/{postId}", emptyMap(), /* not OkHttp's signature */)
+// OkHttp's bridge.cache currently doesn't accept bodyBytes — pass placeholders via bindings.
+// Ktor's runtime.cache does accept bodyBytes for parity with the request flow.
 ```
+
+### Where do the bytes come from?
+
+Retrostash is converter-agnostic — it stores and returns raw bytes. You bring the bytes:
+
+- **Raw `String`:** `payload.encodeToByteArray()`.
+- **Retrofit `Response<ResponseBody>`:** `response.body()?.bytes()`.
+- **Retrofit `Response<MyDto>`** (typed) — re-serialize:
+  ```kotlin
+  // kotlinx.serialization
+  val bytes = Json.encodeToString(dto).encodeToByteArray()
+
+  // Moshi
+  val bytes = moshi.adapter(MyDto::class.java).toJson(dto).encodeToByteArray()
+
+  // Gson
+  val bytes = gson.toJson(dto).toByteArray()
+  ```
+- **Domain object you computed locally** (optimistic UI): same as a typed Response — encode
+  with whatever you already use.
+
+### Reading back
+
+`peekQuery` returns the body bytes (envelope unwrapped on OkHttp). Decode with the same
+serializer you used to encode:
+
+```kotlin
+val raw = bridge.cache.peekQuery(UserApi::class.java, "users/{id}", mapOf("id" to "42"))
+    ?: return  // not cached
+val user: UserDto = Json.decodeFromString(raw.decodeToString())
+```
+
+### Why can't I just pass `MyDto` and let Retrostash serialize?
+
+Coupling to one serializer (kotlinx, Moshi, Gson) would lock every consumer in. The byte
+boundary keeps them interchangeable. Recipes are shipped (above); auto-serialization is not.
+
+### Optimistic UI worked example
+
+```kotlin
+suspend fun toggleLike(article: Article) {
+    // 1. Optimistically update the cached entry the UI reads from
+    val newState = article.copy(liked = !article.liked, likeCount = article.likeCount + if (article.liked) -1 else 1)
+    val payload = Json.encodeToString(newState).encodeToByteArray()
+    bridge.cache.updateQuery(
+        apiClass = LikeApi::class.java,
+        template = "like_status/{guid}",
+        bindings = mapOf("guid" to article.guid),
+        payload = payload,
+        maxAgeMs = 60_000L,
+    )
+
+    // 2. Fire the network mutation; on 2xx, @CacheMutate clears + refetches naturally
+    val result = runCatching { likeApi.toggleLike(article.guid) }
+    if (result.isFailure) {
+        // 3. Roll back: re-write the original
+        val rollback = Json.encodeToString(article).encodeToByteArray()
+        bridge.cache.updateQuery(
+            apiClass = LikeApi::class.java,
+            template = "like_status/{guid}",
+            bindings = mapOf("guid" to article.guid),
+            payload = rollback,
+            maxAgeMs = 60_000L,
+        )
+    }
+}
+```
+
+### Footguns
+
+- **Bytes drift from server.** Whatever you write with `updateQuery` is served on every
+  subsequent `peekQuery` until the next mutation/invalidation. Wrong bytes = lying cache.
+- **Tag-resolution mismatches.** If your `tags` argument resolves to a different value than
+  the `@CacheQuery.tags` would, future tag invalidations won't clear your manually-written
+  entry.
+- **Status-code spoofing.** OkHttp's `updateQuery` wraps payloads in a synthetic `200 OK`
+  envelope with the supplied content-type. If consumer code branches on status code, it will
+  always see 200 for cache-hit entries you wrote.
+- **No ETag / 304 revalidation** on synthetic envelopes — they carry no `ETag` header.
+- **Coexistence with OkHttp's `Cache(...)`.** Same caveat as elsewhere: Retrostash invalidation
+  doesn't reach OkHttp's HTTP cache. See [Caching strategy](#caching-strategy).
 
 ## Caching strategy
 
@@ -373,6 +485,26 @@ Ktor users have the same surface: `tags` on `retrostashQuery`, `invalidateTags` 
   responses leave the cache untouched.
 
 ## FAQ
+
+**Where did `bridge.invalidateQueryKey` / `bridge.invalidateQuery` / `bridge.invalidateTag(s)` go?**
+
+Moved to the dedicated `cache` accessor as a breaking change in 0.0.8:
+
+```kotlin
+// before
+bridge.invalidateQueryKey(key)
+bridge.invalidateQuery(api, template, bindings)
+bridge.invalidateTag(tag)
+bridge.invalidateTags("a", "b")
+
+// after
+bridge.cache.invalidateQueryKey(key)
+bridge.cache.invalidateQuery(api, template, bindings)
+bridge.cache.invalidateTag(tag)
+bridge.cache.invalidateTags("a", "b")
+```
+
+Same shape for `runtime.cache.invalidateTag(s)` on Ktor. Full API in [Cache API](#cache-api).
 
 **Why am I still seeing `X-Retrostash-Source: okhttp-cache` after invalidating?**
 

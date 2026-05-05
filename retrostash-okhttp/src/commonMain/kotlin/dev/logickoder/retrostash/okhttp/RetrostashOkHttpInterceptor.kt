@@ -1,8 +1,10 @@
+@file:OptIn(dev.logickoder.retrostash.internal.RetrostashInternalApi::class)
+
 package dev.logickoder.retrostash.okhttp
 
 import dev.logickoder.retrostash.core.QueryMetadata
 import dev.logickoder.retrostash.core.RetrostashEngine
-import dev.logickoder.retrostash.core.Utf8JsonLookup
+import dev.logickoder.retrostash.internal.runMutationInvalidations
 import kotlinx.coroutines.runBlocking
 import okhttp3.Headers
 import okhttp3.Interceptor
@@ -125,21 +127,18 @@ class RetrostashOkHttpInterceptor(
             }
         }
 
-        if (!metadata?.invalidateTemplates.isNullOrEmpty()) {
-            val resolvedInvalidations = metadata.invalidateTemplates.mapNotNull { template ->
-                resolveTemplate(template, metadata.bindings, bodyBytes)
-            }
-            runBlocking {
-                engine.invalidateTemplates(resolvedInvalidations)
-            }
-        }
-
-        if (!metadata?.invalidateTagTemplates.isNullOrEmpty()) {
-            val resolvedTags = metadata.invalidateTagTemplates.mapNotNull { template ->
-                resolveTemplate(template, metadata.bindings, bodyBytes)
-            }
-            runBlocking {
-                engine.invalidateTags(resolvedTags)
+        if (metadata != null) {
+            val hasInvalidations = metadata.invalidateTemplates.isNotEmpty()
+                || metadata.invalidateTagTemplates.isNotEmpty()
+            if (hasInvalidations) {
+                runBlocking {
+                    engine.runMutationInvalidations(
+                        invalidateTemplates = metadata.invalidateTemplates,
+                        invalidateTagTemplates = metadata.invalidateTagTemplates,
+                        bindings = metadata.bindings,
+                        bodyBytes = bodyBytes,
+                    )
+                }
             }
         }
 
@@ -198,33 +197,6 @@ class RetrostashOkHttpInterceptor(
             buffer.readByteArray()
         }.getOrNull()
 
-    private fun resolveTemplate(
-        template: String,
-        bindings: Map<String, String>,
-        bodyBytes: ByteArray?,
-    ): String? {
-        if (!template.contains('{')) return template
-        val working = bindings.toMutableMap()
-        PLACEHOLDER_REGEX.findAll(template)
-            .map { it.groupValues[1] }
-            .distinct()
-            .forEach { placeholder ->
-                if (!working.containsKey(placeholder)) {
-                    val fromBody =
-                        bodyBytes?.let { Utf8JsonLookup.findFirstPrimitiveByKey(it, placeholder) }
-                    if (fromBody != null) {
-                        working[placeholder] = fromBody
-                    }
-                }
-            }
-
-        val unresolved =
-            PLACEHOLDER_REGEX.findAll(template).any { !working.containsKey(it.groupValues[1]) }
-        if (unresolved) return null
-
-        return PLACEHOLDER_REGEX.replace(template) { working[it.groupValues[1]].orEmpty() }
-    }
-
     companion object {
         private const val HEADER_RETROSTASH_SOURCE = "X-Retrostash-Source"
         private const val SOURCE_RETROSTASH_CACHE = "retrostash-cache"
@@ -233,6 +205,5 @@ class RetrostashOkHttpInterceptor(
         private const val SOURCE_NETWORK = "network"
         private const val HEADER_CACHE_CONTROL = "Cache-Control"
         private const val HEADER_PRAGMA = "Pragma"
-        private val PLACEHOLDER_REGEX = Regex("\\{([^}]+)\\}")
     }
 }

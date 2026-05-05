@@ -48,6 +48,47 @@ RetrostashOkHttpAndroid.install(
     config = RetrostashOkHttpConfig(enableGetCaching = false),
 )`;
 
+const peekSample = `val raw = bridge.cache.peekQuery(
+    apiClass = UserApi::class.java,
+    template = "users/{id}",
+    bindings = mapOf("id" to "42"),
+) ?: return  // not cached
+
+val user: UserDto = Json.decodeFromString(raw.decodeToString())`;
+
+const updateSample = `// Optimistic UI: like-toggle that writes the new state to the cache
+val newState = article.copy(liked = !article.liked)
+val payload = Json.encodeToString(newState).encodeToByteArray()
+
+bridge.cache.updateQuery(
+    apiClass = LikeApi::class.java,
+    template = "like_status/{guid}",
+    bindings = mapOf("guid" to article.guid),
+    payload = payload,
+    maxAgeMs = 60_000L,
+    tags = listOf("article:{guid}"),
+)`;
+
+const invalidateSample = `// By query identity (resolves the key for you)
+bridge.cache.invalidateQuery(
+    UserApi::class.java,
+    "users/{id}",
+    mapOf("id" to "42"),
+)
+
+// By raw cache key (advanced)
+bridge.cache.invalidateQueryKey("UserApi|users/42|...")
+
+// By tag — clears every entry whose @CacheQuery.tags resolved to this value
+bridge.cache.invalidateTags(
+    "article:\${article.guid}",
+    "article:\${article.conceptId}",
+)`;
+
+const clearSample = `// Drops every Retrostash store entry. Does NOT touch OkHttp's HTTP cache —
+// see the Caching strategy section above.
+bridge.cache.clearAll()`;
+
 const layersDiagram = `┌─────────────────────────────┐
 │  Retrostash store           │  ← @CacheQuery / @CacheMutate / tags
 │  (annotation-driven)        │     Authoritative for invalidation.
@@ -186,6 +227,67 @@ export default function Caching() {
         </div>
       </section>
 
+      <section className="mt-16 scroll-reveal">
+        <h2 className="text-2xl font-semibold tracking-tight">Direct cache control</h2>
+        <p className="mt-4 text-on-surface-variant">
+          Beyond declarative <code className="font-mono text-sm">@CacheQuery</code> /{' '}
+          <code className="font-mono text-sm">@CacheMutate</code>, both transports expose an
+          imperative cache surface for peek, update, invalidate, and clear:{' '}
+          <code className="font-mono text-sm">bridge.cache</code> (OkHttp, blocking) and{' '}
+          <code className="font-mono text-sm">runtime.cache</code> (Ktor, suspend). Same
+          conceptual contract, ergonomics tuned to the transport.
+        </p>
+        <p className="mt-3 text-sm text-on-surface-variant">
+          Canonical reference:{' '}
+          <a
+            className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+            href="https://github.com/logickoder/retrostash#cache-api"
+            rel="noreferrer noopener"
+            target="_blank"
+          >
+            README — Cache API
+            <ExternalLink className="size-3.5" aria-hidden />
+          </a>
+          . Below is a tour of the four verbs.
+        </p>
+
+        <h3 className="mt-8 text-lg font-semibold">Peek a cached entry</h3>
+        <p className="mt-2 text-on-surface-variant">
+          Returns the body bytes (envelope-unwrapped on OkHttp) or null. Decode with whatever
+          serializer you used to write.
+        </p>
+        <div className="mt-3">
+          <CodeBlock lang="Kotlin · peekQuery">{peekSample}</CodeBlock>
+        </div>
+
+        <h3 className="mt-8 text-lg font-semibold">Update / upsert a cached entry</h3>
+        <p className="mt-2 text-on-surface-variant">
+          Writes the supplied bytes under the resolved cache key. Useful for optimistic UI:
+          update local state, push it to the cache, then fire the network mutation.
+        </p>
+        <div className="mt-3">
+          <CodeBlock lang="Kotlin · updateQuery">{updateSample}</CodeBlock>
+        </div>
+        <p className="mt-3 text-sm text-on-surface-variant">
+          Retrostash is converter-agnostic — bring your own bytes. README has recipes for
+          kotlinx.serialization, Moshi, Gson, raw String, and Retrofit{' '}
+          <code className="font-mono text-sm">Response&lt;T&gt;</code>.
+        </p>
+
+        <h3 className="mt-8 text-lg font-semibold">Invalidate</h3>
+        <p className="mt-2 text-on-surface-variant">
+          By query identity, by raw key, or by tag.
+        </p>
+        <div className="mt-3">
+          <CodeBlock lang="Kotlin · invalidate">{invalidateSample}</CodeBlock>
+        </div>
+
+        <h3 className="mt-8 text-lg font-semibold">Clear all</h3>
+        <div className="mt-3">
+          <CodeBlock lang="Kotlin · clearAll">{clearSample}</CodeBlock>
+        </div>
+      </section>
+
       <div className="mt-12 rounded-card border border-outline/30 bg-secondary-container/20 p-5 scroll-reveal">
         <p className="text-sm text-on-surface-variant">
           For per-class details, see the{' '}
@@ -196,9 +298,9 @@ export default function Caching() {
             API docs
             <ArrowRight className="size-3.5" aria-hidden />
           </a>{' '}
-          — the <code className="font-mono text-sm">RetrostashOkHttpConfig</code> KDoc and the{' '}
-          <code className="font-mono text-sm">RetrostashOkHttpInterceptor</code> KDoc both link
-          back here.
+          — the <code className="font-mono text-sm">RetrostashOkHttpCache</code> /{' '}
+          <code className="font-mono text-sm">RetrostashKtorCache</code> KDoc cover every method
+          with examples.
         </p>
       </div>
     </div>

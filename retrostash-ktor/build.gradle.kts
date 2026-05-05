@@ -34,6 +34,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(project(":retrostash-core"))
+            implementation(project(":retrostash-internal"))
             api(libs.ktor.client.core)
         }
 

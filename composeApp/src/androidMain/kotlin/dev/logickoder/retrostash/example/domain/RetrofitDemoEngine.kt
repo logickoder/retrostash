@@ -51,7 +51,7 @@ class RetrofitDemoEngine(
     }
 
     override suspend fun clearCache() {
-        RetrostashOkHttpBridge.from(client)?.invalidateQueryKey("posts/{id}")
+        RetrostashOkHttpBridge.from(client)?.cache?.invalidateQueryKey("posts/{id}")
         onLog("Retrofit store cleared")
     }
 

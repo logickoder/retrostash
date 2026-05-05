@@ -85,7 +85,7 @@ class OkHttpDemoEngine(
 
     override suspend fun clearCache() {
         val bridge = RetrostashOkHttpBridge.from(client)
-        bridge?.invalidateQueryKey("posts/{id}")
+        bridge?.cache?.invalidateQueryKey("posts/{id}")
         onLog("OkHttp store cleared")
     }
 

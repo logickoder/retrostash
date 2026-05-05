@@ -1,10 +1,8 @@
 package dev.logickoder.retrostash.okhttp
 
 import dev.logickoder.retrostash.core.CoreKeyResolver
-import dev.logickoder.retrostash.core.QueryMetadata
 import dev.logickoder.retrostash.core.RetrostashEngine
 import dev.logickoder.retrostash.core.RetrostashStore
-import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 
 /**
@@ -27,10 +25,16 @@ import okhttp3.OkHttpClient
  * val client = OkHttpClient.Builder().also(bridge::install).build()
  * ```
  *
+ * Direct cache control — peek, update, invalidate, clear — lives on [cache]. See
+ * [RetrostashOkHttpCache] and the README's
+ * [Cache API](https://github.com/logickoder/retrostash#cache-api) section.
+ *
  * @property store Backing cache store.
  * @property config Tunables — TTLs, byte/entry caps, logger.
  * @property keyResolver Custom key resolver (rarely overridden).
  * @property engine Underlying transport-agnostic engine. Exposed for advanced wiring.
+ * @property cache Direct cache surface — `peekQuery`, `updateQuery`, `invalidateQuery*`,
+ * `invalidateTag(s)`, `clearAll`.
  */
 class RetrostashOkHttpBridge(
     val store: RetrostashStore,
@@ -42,6 +46,8 @@ class RetrostashOkHttpBridge(
         timeoutMs = config.timeoutMs,
     ),
 ) {
+    val cache: RetrostashOkHttpCache = RetrostashOkHttpCache(engine, keyResolver, store)
+
     /**
      * Adds Retrostash's interceptors to [builder]. Returns [builder] for chaining.
      *
@@ -57,80 +63,6 @@ class RetrostashOkHttpBridge(
         builder.addInterceptor(RetrostashOkHttpHandleInterceptor(this))
         builder.addInterceptor(RetrostashOkHttpInterceptor(engine, config))
         return builder
-    }
-
-    /**
-     * Invalidates a single template directly, bypassing annotation extraction. Returns `true` if
-     * any work was scheduled (always true for a non-blank key — actual store eviction happens
-     * asynchronously inside `runBlocking`).
-     */
-    fun invalidateQueryKey(key: String): Boolean {
-        if (key.isBlank()) return false
-        runBlocking {
-            engine.invalidateTemplates(listOf(key))
-        }
-        return true
-    }
-
-    /**
-     * Resolves [template] against [bindings] in the namespace of [apiClass] and invalidates the
-     * resulting cache key. Returns the resolved key (also passed to the store), or `null` if any
-     * placeholder could not be filled.
-     */
-    fun invalidateQuery(
-        apiClass: Class<*>,
-        template: String,
-        bindings: Map<String, Any?>,
-    ): String? {
-        val resolved = keyResolver.resolve(
-            QueryMetadata(
-                scopeName = apiClass.simpleName,
-                template = template,
-                bindings = bindings.mapNotNull { (k, v) ->
-                    v?.toString()?.let { value -> k to value }
-                }.toMap(),
-            )
-        ) ?: return null
-
-        invalidateQueryKey(resolved)
-        return resolved
-    }
-
-    /**
-     * Removes every cached entry whose tag set contains [tag]. [tag] must be the **resolved**
-     * value (e.g. `"article:concept123"`), not a template. Returns `true` if a non-blank tag
-     * was scheduled for invalidation.
-     */
-    fun invalidateTag(tag: String): Boolean {
-        if (tag.isBlank()) return false
-        runBlocking {
-            engine.invalidateTags(listOf(tag))
-        }
-        return true
-    }
-
-    /**
-     * Bulk version of [invalidateTag]. Blank values are skipped. Useful when a domain object
-     * (e.g. an article) carries multiple identifiers that map to the same logical tag namespace
-     * across unrelated APIs:
-     *
-     * ```kotlin
-     * bridge.invalidateTags(
-     *     "article:${article.guid}",
-     *     "article:${article.conceptId}",
-     *     "article:${article.contentUri}",
-     * )
-     * ```
-     *
-     * Returns `true` if at least one non-blank tag was scheduled.
-     */
-    fun invalidateTags(vararg tags: String): Boolean {
-        val cleaned = tags.filter { it.isNotBlank() }
-        if (cleaned.isEmpty()) return false
-        runBlocking {
-            engine.invalidateTags(cleaned)
-        }
-        return true
     }
 
     companion object {
