@@ -98,9 +98,9 @@ dependencyResolutionManagement {
 dependencies {
     // Pick ONE transport. Each pulls retrostash-core + retrostash-annotations transitively
     // so you don't add them yourself.
-    implementation("dev.logickoder:retrostash-okhttp:0.0.8")
+    implementation("dev.logickoder:retrostash-okhttp:0.0.9")
     // or
-    implementation("dev.logickoder:retrostash-ktor:0.0.8")
+    implementation("dev.logickoder:retrostash-ktor:0.0.9")
 }
 ```
 
