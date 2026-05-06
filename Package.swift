@@ -7,7 +7,7 @@ import PackageDescription
 // XCFramework is built by `./gradlew :retrostash-ktor:assembleRetrostashReleaseXCFramework`
 // and zipped + uploaded to the corresponding GitHub Release.
 
-let version = "0.0.12"
+let version = "0.0.13"
 
 let package = Package(
     name: "Retrostash",
@@ -21,7 +21,7 @@ let package = Package(
         .binaryTarget(
             name: "Retrostash",
             url: "https://github.com/logickoder/retrostash/releases/download/\(version)/Retrostash.xcframework.zip",
-            checksum: "cada5c32e43198a3cbd03f92302600724ea79f7dc9990c1a97db9d8da9aa9487"
+            checksum: "054df173cdacea17ee05f6f37b9d40cd8f0ac4aabfd37d544288bd903fc953c9"
         ),
     ]
 )
