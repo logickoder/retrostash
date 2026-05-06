@@ -16,6 +16,11 @@ extensions.configure<KotlinMultiplatformExtension>("kotlin") {
     compilerOptions {
         languageVersion.set(KotlinVersion.KOTLIN_2_1)
         apiVersion.set(KotlinVersion.KOTLIN_2_1)
+        // Stamp output `.class` files with the older 2.0.0 metadata format so consumers using
+        // kapt + Room (which bundles `kotlin-metadata-jvm` ≤ 2.2) can read Retrostash's classes.
+        // Without this, Kotlin 2.3 compiler emits metadata 2.3.0 → kapt fails with
+        // "Provided Metadata instance has version 2.3.0, while maximum supported version is 2.2.0".
+        freeCompilerArgs.addAll("-Xmetadata-version=2.0.0", "-Xsuppress-version-warnings")
     }
 }
 
