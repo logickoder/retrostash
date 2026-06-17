@@ -8,7 +8,7 @@ kotlin {
     jvm()
     android {
         namespace = "dev.logickoder.retrostash.ktor"
-        compileSdk = 36
+        compileSdk = libs.versions.android.sdk.version.get().toInt()
         minSdk = 21
     }
     val xcf = XCFramework("Retrostash")

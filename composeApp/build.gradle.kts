@@ -14,11 +14,11 @@ kotlin {
 
     android {
         namespace = "dev.logickoder.retrostash.example.shared"
-        compileSdk = 36
+        compileSdk = libs.versions.android.sdk.version.get().toInt()
         minSdk = 24
     }
 
-    listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { target ->
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
         target.binaries.framework {
             baseName = "RetrostashApp"
             isStatic = true
@@ -37,11 +37,11 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            api(compose.runtime)
-            api(compose.foundation)
-            api(compose.material3)
-            api(compose.materialIconsExtended)
-            api(compose.ui)
+            api(libs.compose.foundation)
+            api(libs.compose.material3)
+            api(libs.compose.material.icons)
+            api(libs.compose.runtime)
+            api(libs.compose.ui)
             implementation(libs.coroutines.core)
             implementation(libs.ktor.client.core)
             api(project(":retrostash-core"))

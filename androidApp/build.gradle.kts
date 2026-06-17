@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "dev.logickoder.retrostash.example"
-    compileSdk = 36
+    compileSdk = libs.versions.android.sdk.version.get().toInt()
 
     defaultConfig {
         applicationId = "dev.logickoder.retrostash.example"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = libs.versions.android.sdk.version.get().toInt()
         versionCode = 1
         versionName = "1.0"
     }

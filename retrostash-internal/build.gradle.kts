@@ -10,7 +10,7 @@ kotlin {
     jvm()
     android {
         namespace = "dev.logickoder.retrostash.internal"
-        compileSdk = 36
+        compileSdk = libs.versions.android.sdk.version.get().toInt()
         minSdk = 21
     }
     iosX64()
